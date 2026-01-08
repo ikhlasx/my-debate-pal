@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useDebateTracker } from '@/hooks/useDebateTracker';
 import { useNotifications } from '@/hooks/useNotifications';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { Header } from '@/components/Header';
 import { DebateToggle } from '@/components/DebateToggle';
 import { StatsCard } from '@/components/StatsCard';
@@ -9,6 +10,7 @@ import { SessionHistory } from '@/components/SessionHistory';
 import { ToastContainer } from '@/components/ToastContainer';
 import { BothActiveIndicator } from '@/components/BothActiveIndicator';
 import { CalendarView } from '@/components/CalendarView';
+import { getPartnerName } from '@/lib/partnerSettings';
 
 const Index = () => {
   const [showCalendar, setShowCalendar] = useState(false);
@@ -38,44 +40,122 @@ const Index = () => {
     checkMilestones,
   } = useNotifications();
 
+  const { isSubscribed, sendNotification } = usePushNotifications();
+
   const prevBothActiveRef = useRef(false);
+
+  // Format duration helper
+  const formatDuration = useCallback((seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${String(secs).padStart(2, '0')}`;
+  }, []);
+
+  // Send push notification when app is in background
+  const sendPushIfBackground = useCallback(async (title: string, body: string, tag: string, data?: Record<string, any>) => {
+    if (isSubscribed && document.visibilityState === 'hidden') {
+      await sendNotification({
+        title,
+        body,
+        tag,
+        icon: '/favicon.ico',
+        data: { url: '/', ...data },
+        requireInteraction: tag.includes('both_active'),
+        vibrate: tag.includes('both_active') ? [200, 100, 200] : [100, 50, 100],
+      });
+    }
+  }, [isSubscribed, sendNotification]);
 
   // Handle both active notification
   useEffect(() => {
     if (bothActive && !prevBothActiveRef.current) {
       notifyBothActive();
+      sendPushIfBackground(
+        '⚠️ Both Partners Debating!',
+        `${getPartnerName('husband')} and ${getPartnerName('wife')} are both actively debating`,
+        'both_active',
+        { type: 'both_active' }
+      );
     }
     prevBothActiveRef.current = bothActive;
-  }, [bothActive, notifyBothActive]);
+  }, [bothActive, notifyBothActive, sendPushIfBackground]);
 
   // Check milestones
   useEffect(() => {
     if (husbandActive) {
       checkMilestones('husband', husbandTime);
+      
+      // Send push for milestones
+      const minutes = Math.floor(husbandTime / 60);
+      if ([5, 15, 30].includes(minutes) && husbandTime % 60 === 0) {
+        const emoji = minutes >= 30 ? '🚨' : '⏰';
+        sendPushIfBackground(
+          `${emoji} Time Alert`,
+          `${getPartnerName('husband')}'s debate: ${minutes} minutes`,
+          `milestone_${minutes}_husband`,
+          { type: 'milestone', minutes, partner: 'husband' }
+        );
+      }
     }
-  }, [husbandActive, husbandTime, checkMilestones]);
+  }, [husbandActive, husbandTime, checkMilestones, sendPushIfBackground]);
 
   useEffect(() => {
     if (wifeActive) {
       checkMilestones('wife', wifeTime);
+      
+      // Send push for milestones
+      const minutes = Math.floor(wifeTime / 60);
+      if ([5, 15, 30].includes(minutes) && wifeTime % 60 === 0) {
+        const emoji = minutes >= 30 ? '🚨' : '⏰';
+        sendPushIfBackground(
+          `${emoji} Time Alert`,
+          `${getPartnerName('wife')}'s debate: ${minutes} minutes`,
+          `milestone_${minutes}_wife`,
+          { type: 'milestone', minutes, partner: 'wife' }
+        );
+      }
     }
-  }, [wifeActive, wifeTime, checkMilestones]);
+  }, [wifeActive, wifeTime, checkMilestones, sendPushIfBackground]);
 
-  const handleHusbandToggle = () => {
+  const handleHusbandToggle = async () => {
     const result = toggleHusband();
     if (result.action === 'start') {
       notifyDebateStart('husband');
+      await sendPushIfBackground(
+        '🔴 Debate Started',
+        `${getPartnerName('husband')} has started a debate`,
+        'debate_start_husband',
+        { type: 'debate_start', partner: 'husband' }
+      );
     } else if (result.action === 'end' && result.duration !== undefined) {
       notifyDebateEnd('husband', result.duration);
+      await sendPushIfBackground(
+        '✅ Debate Ended',
+        `${getPartnerName('husband')}'s debate ended. Duration: ${formatDuration(result.duration)}`,
+        'debate_end_husband',
+        { type: 'debate_end', partner: 'husband', duration: result.duration }
+      );
     }
   };
 
-  const handleWifeToggle = () => {
+  const handleWifeToggle = async () => {
     const result = toggleWife();
     if (result.action === 'start') {
       notifyDebateStart('wife');
+      await sendPushIfBackground(
+        '🔴 Debate Started',
+        `${getPartnerName('wife')} has started a debate`,
+        'debate_start_wife',
+        { type: 'debate_start', partner: 'wife' }
+      );
     } else if (result.action === 'end' && result.duration !== undefined) {
       notifyDebateEnd('wife', result.duration);
+      await sendPushIfBackground(
+        '✅ Debate Ended',
+        `${getPartnerName('wife')}'s debate ended. Duration: ${formatDuration(result.duration)}`,
+        'debate_end_wife',
+        { type: 'debate_end', partner: 'wife', duration: result.duration }
+      );
     }
   };
 

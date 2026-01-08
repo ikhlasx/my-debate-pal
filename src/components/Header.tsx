@@ -1,6 +1,14 @@
 import { motion } from 'framer-motion';
-import { Heart, Settings, Bell, Calendar } from 'lucide-react';
+import { Heart, Settings, Bell, BellRing, Calendar, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Link } from 'react-router-dom';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 
 interface HeaderProps {
   permission: NotificationPermission;
@@ -9,7 +17,24 @@ interface HeaderProps {
   onOpenSettings?: () => void;
 }
 
-export const Header = ({ permission, onRequestPermission, onOpenCalendar, onOpenSettings }: HeaderProps) => {
+export const Header = ({ permission, onRequestPermission, onOpenCalendar }: HeaderProps) => {
+  const { isSubscribed, isSupported, subscribe, isLoading } = usePushNotifications();
+
+  const handleNotificationClick = async () => {
+    if (isSubscribed) {
+      // Already subscribed, go to settings
+      return;
+    }
+    
+    if (permission !== 'granted') {
+      onRequestPermission();
+    }
+    
+    if (isSupported && !isSubscribed) {
+      await subscribe();
+    }
+  };
+
   return (
     <motion.header
       initial={{ opacity: 0, y: -20 }}
@@ -29,7 +54,7 @@ export const Header = ({ permission, onRequestPermission, onOpenCalendar, onOpen
         </div>
         <div>
           <h1 className="font-display font-bold text-xl tracking-tight">
-            Debate Tracker
+            കച്ചറ app
           </h1>
           <p className="text-sm text-muted-foreground">
             Keep it civil, keep it timed
@@ -38,17 +63,55 @@ export const Header = ({ permission, onRequestPermission, onOpenCalendar, onOpen
       </div>
 
       <div className="flex items-center gap-2">
-        {permission !== 'granted' && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onRequestPermission}
-            className="gap-2"
+        {/* Push Notification Button */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {isSubscribed ? (
+                <Link to="/settings">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="rounded-xl relative"
+                    title="Push notifications enabled"
+                  >
+                    <BellRing className="w-5 h-5 text-emerald-500" />
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full border-2 border-background" />
+                  </Button>
+                </Link>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleNotificationClick}
+                  disabled={isLoading}
+                  className="gap-2 rounded-xl"
+                >
+                  <Bell className="w-4 h-4" />
+                  <span className="hidden sm:inline">
+                    {isLoading ? 'Enabling...' : 'Enable Alerts'}
+                  </span>
+                </Button>
+              )}
+            </TooltipTrigger>
+            <TooltipContent>
+              {isSubscribed 
+                ? 'Push notifications are enabled. Click to manage.' 
+                : 'Enable push notifications to get alerts'}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
+        <Link to="/analytics">
+          <Button 
+            variant="outline" 
+            size="icon" 
+            className="rounded-xl"
+            title="Analytics Dashboard"
           >
-            <Bell className="w-4 h-4" />
-            <span className="hidden sm:inline">Enable Alerts</span>
+            <BarChart3 className="w-5 h-5" />
           </Button>
-        )}
+        </Link>
         <Button 
           variant="outline" 
           size="icon" 
@@ -57,14 +120,16 @@ export const Header = ({ permission, onRequestPermission, onOpenCalendar, onOpen
         >
           <Calendar className="w-5 h-5" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="rounded-xl"
-          onClick={onOpenSettings}
-        >
-          <Settings className="w-5 h-5" />
-        </Button>
+        <Link to="/settings">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-xl"
+            title="Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </Button>
+        </Link>
       </div>
     </motion.header>
   );

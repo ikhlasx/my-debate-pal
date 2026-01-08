@@ -1,10 +1,30 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Partner, DebateSession } from '@/types/debate';
 import { subDays, subHours, subMinutes } from 'date-fns';
+import { apiClient, wsClient, SessionResponse } from '@/lib/api';
+import { getPartnerName } from '@/lib/partnerSettings';
 
 const STORAGE_KEY = 'debate-sessions';
+const USE_BACKEND = import.meta.env.VITE_USE_BACKEND !== 'false';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
+
+// Convert API session to app session format
+const apiToAppSession = (apiSession: SessionResponse): DebateSession => ({
+  id: apiSession.id.toString(),
+  partner: apiSession.partner,
+  startTime: new Date(apiSession.start_time),
+  endTime: apiSession.end_time ? new Date(apiSession.end_time) : undefined,
+  duration: apiSession.duration || undefined,
+});
+
+// Convert app session to API format
+const appToApiSession = (session: Partial<DebateSession>) => ({
+  partner: session.partner!,
+  start_time: session.startTime!.toISOString(),
+  end_time: session.endTime?.toISOString(),
+  duration: session.duration,
+});
 
 // Generate sample data for demo purposes
 const generateSampleData = (): DebateSession[] => {
@@ -60,33 +80,72 @@ export const useDebateTracker = () => {
   const husbandIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const wifeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load sessions from localStorage
+  // Load sessions from API or localStorage
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored);
-        setSessions(parsed.map((s: any) => ({
-          ...s,
-          startTime: new Date(s.startTime),
-          endTime: s.endTime ? new Date(s.endTime) : undefined,
-        })));
-      } catch (e) {
-        console.error('Failed to parse sessions:', e);
-        // Load sample data if parsing fails
-        const sampleData = generateSampleData();
-        setSessions(sampleData);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleData));
+    const loadSessions = async () => {
+      if (USE_BACKEND) {
+        try {
+          const apiSessions = await apiClient.getSessions();
+          const appSessions = apiSessions.map(apiToAppSession);
+          setSessions(appSessions);
+          // Also save to localStorage as backup
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(appSessions));
+        } catch (error) {
+          console.error('Failed to load sessions from API, falling back to localStorage:', error);
+          // Fallback to localStorage
+          const stored = localStorage.getItem(STORAGE_KEY);
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              setSessions(parsed.map((s: any) => ({
+                ...s,
+                startTime: new Date(s.startTime),
+                endTime: s.endTime ? new Date(s.endTime) : undefined,
+              })));
+            } catch (e) {
+              console.error('Failed to parse sessions:', e);
+            }
+          }
+        }
+      } else {
+        // Use localStorage only
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            setSessions(parsed.map((s: any) => ({
+              ...s,
+              startTime: new Date(s.startTime),
+              endTime: s.endTime ? new Date(s.endTime) : undefined,
+            })));
+          } catch (e) {
+            console.error('Failed to parse sessions:', e);
+          }
+        }
       }
-    } else {
-      // No stored data, load sample data for demo
-      const sampleData = generateSampleData();
-      setSessions(sampleData);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleData));
+    };
+
+    loadSessions();
+
+    // Set up WebSocket listener for real-time updates
+    if (USE_BACKEND) {
+      wsClient.connect();
+      const handleSessionUpdate = (data: any) => {
+        loadSessions(); // Reload sessions when updated
+      };
+      wsClient.on('session_created', handleSessionUpdate);
+      wsClient.on('session_updated', handleSessionUpdate);
+      wsClient.on('session_deleted', handleSessionUpdate);
+
+      return () => {
+        wsClient.off('session_created', handleSessionUpdate);
+        wsClient.off('session_updated', handleSessionUpdate);
+        wsClient.off('session_deleted', handleSessionUpdate);
+      };
     }
   }, []);
 
-  // Save sessions to localStorage
+  // Save sessions to localStorage as backup
   useEffect(() => {
     if (sessions.length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
@@ -139,7 +198,7 @@ export const useDebateTracker = () => {
     };
   }, [wifeActive]);
 
-  const toggleHusband = useCallback(() => {
+  const toggleHusband = useCallback(async () => {
     if (!husbandActive) {
       // Starting
       setHusbandActive(true);
@@ -155,8 +214,38 @@ export const useDebateTracker = () => {
         endTime,
         duration: husbandTime,
       };
-      setSessions(prev => [...prev, session]);
-      setLastHusbandSession(session);
+      
+      // Save to API if enabled
+      if (USE_BACKEND) {
+        try {
+          const apiSession = await apiClient.createSession(appToApiSession(session));
+          const savedSession = apiToAppSession(apiSession);
+          setSessions(prev => [...prev, savedSession]);
+          setLastHusbandSession(savedSession);
+          
+          // Send notification
+          try {
+            await apiClient.createNotification({
+              type: 'debate_end',
+              title: `${getPartnerName('husband')} Ended Debate`,
+              message: `Duration: ${Math.floor(husbandTime / 60)}:${String(husbandTime % 60).padStart(2, '0')}`,
+              partner: 'husband',
+              data: { duration: husbandTime },
+            });
+          } catch (notifError) {
+            console.error('Failed to send notification:', notifError);
+          }
+        } catch (error) {
+          console.error('Failed to save session to API:', error);
+          // Fallback to local storage
+          setSessions(prev => [...prev, session]);
+          setLastHusbandSession(session);
+        }
+      } else {
+        setSessions(prev => [...prev, session]);
+        setLastHusbandSession(session);
+      }
+      
       setHusbandActive(false);
       setHusbandTime(0);
       husbandStartRef.current = null;
@@ -164,7 +253,7 @@ export const useDebateTracker = () => {
     }
   }, [husbandActive, husbandTime]);
 
-  const toggleWife = useCallback(() => {
+  const toggleWife = useCallback(async () => {
     if (!wifeActive) {
       // Starting
       setWifeActive(true);
@@ -180,8 +269,38 @@ export const useDebateTracker = () => {
         endTime,
         duration: wifeTime,
       };
-      setSessions(prev => [...prev, session]);
-      setLastWifeSession(session);
+      
+      // Save to API if enabled
+      if (USE_BACKEND) {
+        try {
+          const apiSession = await apiClient.createSession(appToApiSession(session));
+          const savedSession = apiToAppSession(apiSession);
+          setSessions(prev => [...prev, savedSession]);
+          setLastWifeSession(savedSession);
+          
+          // Send notification
+          try {
+            await apiClient.createNotification({
+              type: 'debate_end',
+              title: `${getPartnerName('wife')} Ended Debate`,
+              message: `Duration: ${Math.floor(wifeTime / 60)}:${String(wifeTime % 60).padStart(2, '0')}`,
+              partner: 'wife',
+              data: { duration: wifeTime },
+            });
+          } catch (notifError) {
+            console.error('Failed to send notification:', notifError);
+          }
+        } catch (error) {
+          console.error('Failed to save session to API:', error);
+          // Fallback to local storage
+          setSessions(prev => [...prev, session]);
+          setLastWifeSession(session);
+        }
+      } else {
+        setSessions(prev => [...prev, session]);
+        setLastWifeSession(session);
+      }
+      
       setWifeActive(false);
       setWifeTime(0);
       wifeStartRef.current = null;

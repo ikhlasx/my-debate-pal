@@ -2,6 +2,7 @@ import { motion } from 'framer-motion';
 import { User, Heart } from 'lucide-react';
 import { Partner } from '@/types/debate';
 import { formatTime } from '@/hooks/useNotifications';
+import { getPartnerName } from '@/lib/partnerSettings';
 
 interface DebateToggleProps {
   partner: Partner;
@@ -76,37 +77,35 @@ export const DebateToggle = ({
           }
         `}
       >
-        {/* Pulse animation when active */}
+        {/* Wave animation behind button when active */}
         {isActive && (
-          <>
+          <motion.div
+            className="absolute inset-0 rounded-3xl overflow-hidden z-0"
+            style={{
+              pointerEvents: 'none',
+            }}
+          >
             <motion.div
-              className={`
-                absolute inset-0 rounded-3xl
-                ${isHusband ? 'bg-husband' : 'bg-wife'}
-              `}
-              initial={{ scale: 1, opacity: 0.4 }}
-              animate={{ scale: 1.15, opacity: 0 }}
+              className={`absolute rounded-full ${isHusband ? 'bg-husband' : 'bg-wife'}`}
+              style={{
+                width: '100%',
+                height: '100%',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+              }}
+              animate={{
+                scale: [1, 1.5],
+                opacity: [0.2, 0],
+              }}
               transition={{
                 repeat: Infinity,
-                duration: 1.5,
+                duration: 2.5,
                 ease: 'easeOut',
+                repeatDelay: 0,
               }}
             />
-            <motion.div
-              className={`
-                absolute inset-0 rounded-3xl
-                ${isHusband ? 'bg-husband' : 'bg-wife'}
-              `}
-              initial={{ scale: 1, opacity: 0.3 }}
-              animate={{ scale: 1.25, opacity: 0 }}
-              transition={{
-                repeat: Infinity,
-                duration: 1.5,
-                ease: 'easeOut',
-                delay: 0.3,
-              }}
-            />
-          </>
+          </motion.div>
         )}
 
         {/* Icon */}
@@ -123,8 +122,8 @@ export const DebateToggle = ({
         </div>
 
         {/* Label */}
-        <span className="relative z-10 capitalize text-xl">
-          {partner}
+        <span className="relative z-10 text-xl">
+          {getPartnerName(partner)}
         </span>
 
         {/* Status indicator */}

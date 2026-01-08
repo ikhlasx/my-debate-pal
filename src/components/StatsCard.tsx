@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion';
 import { TrendingUp, Clock, Zap } from 'lucide-react';
 import { formatDuration } from '@/hooks/useNotifications';
+import { getPartnerName } from '@/lib/partnerSettings';
 
 interface StatsCardProps {
   todayStats: {
@@ -50,7 +51,7 @@ export const StatsCard = ({ todayStats }: StatsCardProps) => {
             {todayStats.husbandCount}
           </div>
           <div className="text-xs text-husband/70 mt-1">
-            Husband ({formatDuration(todayStats.husbandTotalTime)})
+            {getPartnerName('husband')} ({formatDuration(todayStats.husbandTotalTime)})
           </div>
         </div>
 
@@ -63,7 +64,7 @@ export const StatsCard = ({ todayStats }: StatsCardProps) => {
             {todayStats.wifeCount}
           </div>
           <div className="text-xs text-wife/70 mt-1">
-            Wife ({formatDuration(todayStats.wifeTotalTime)})
+            {getPartnerName('wife')} ({formatDuration(todayStats.wifeTotalTime)})
           </div>
         </div>
       </div>

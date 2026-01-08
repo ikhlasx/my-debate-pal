@@ -75,16 +75,39 @@ export const CalendarView = ({ sessions, onClose }: CalendarViewProps) => {
     };
   };
 
-  // Get activity level for color coding (0-4)
-  const getActivityLevel = (date: Date): number => {
+  // Get day color based on activity
+  const getDayColor = (date: Date): string => {
     const analytics = getDayAnalytics(date);
     const totalSessions = analytics.husbandSessions.length + analytics.wifeSessions.length;
+    const totalTime = analytics.totalTime;
+    const hasOverlap = analytics.overlapTime > 0;
     
-    if (totalSessions === 0) return 0;
-    if (totalSessions <= 2) return 1;
-    if (totalSessions <= 4) return 2;
-    if (totalSessions <= 6) return 3;
-    return 4;
+    // Purple: Both partners active simultaneously
+    if (hasOverlap) {
+      return 'bg-purple-400 dark:bg-purple-600';
+    }
+    
+    // Green: No debates (peaceful day)
+    if (totalSessions === 0) {
+      return 'bg-green-100 dark:bg-green-900/30';
+    }
+    
+    // Red: 6+ debates OR >1 hour total (high activity)
+    if (totalSessions >= 6 || totalTime > 3600) {
+      return 'bg-red-400 dark:bg-red-600';
+    }
+    
+    // Orange: 3-5 debates (moderate activity)
+    if (totalSessions >= 3 && totalSessions <= 5) {
+      return 'bg-orange-300 dark:bg-orange-700/50';
+    }
+    
+    // Yellow: 1-2 debates (light activity)
+    if (totalSessions >= 1 && totalSessions <= 2) {
+      return 'bg-yellow-200 dark:bg-yellow-800/40';
+    }
+    
+    return 'bg-gray-100 dark:bg-gray-800';
   };
 
   const selectedAnalytics = selectedDate ? getDayAnalytics(selectedDate) : null;
@@ -150,12 +173,14 @@ export const CalendarView = ({ sessions, onClose }: CalendarViewProps) => {
             {/* Calendar Days */}
             <div className="grid grid-cols-7 gap-2">
               {calendarDays.map((day, index) => {
-                const activityLevel = getActivityLevel(day);
                 const isCurrentMonth = isSameMonth(day, currentMonth);
                 const isSelected = selectedDate && isSameDay(day, selectedDate);
                 const analytics = getDayAnalytics(day);
                 const hasHusband = analytics.husbandSessions.length > 0;
                 const hasWife = analytics.wifeSessions.length > 0;
+                const hasOverlap = analytics.overlapTime > 0;
+                const dayColor = getDayColor(day);
+                const isDarkColor = dayColor.includes('red') || dayColor.includes('purple') || dayColor.includes('orange-');
 
                 return (
                   <motion.button
@@ -165,20 +190,16 @@ export const CalendarView = ({ sessions, onClose }: CalendarViewProps) => {
                     whileTap={{ scale: 0.95 }}
                     className={`
                       relative aspect-square rounded-xl p-2 flex flex-col items-center justify-center
-                      transition-all duration-200
+                      transition-all duration-200 hover:opacity-80
                       ${!isCurrentMonth ? 'opacity-30' : ''}
                       ${isSelected ? 'ring-2 ring-primary ring-offset-2' : ''}
                       ${isToday(day) ? 'ring-2 ring-warning ring-offset-1' : ''}
-                      ${activityLevel === 0 ? 'bg-secondary hover:bg-secondary/80' : ''}
-                      ${activityLevel === 1 ? 'bg-orange-100 dark:bg-orange-900/30' : ''}
-                      ${activityLevel === 2 ? 'bg-orange-200 dark:bg-orange-800/40' : ''}
-                      ${activityLevel === 3 ? 'bg-orange-300 dark:bg-orange-700/50' : ''}
-                      ${activityLevel === 4 ? 'bg-orange-400 dark:bg-orange-600/60' : ''}
+                      ${dayColor}
                     `}
                   >
                     <span className={`
                       text-sm font-medium
-                      ${activityLevel >= 3 ? 'text-white dark:text-white' : ''}
+                      ${isDarkColor ? 'text-white' : 'text-gray-900 dark:text-gray-100'}
                     `}>
                       {format(day, 'd')}
                     </span>
@@ -202,24 +223,24 @@ export const CalendarView = ({ sessions, onClose }: CalendarViewProps) => {
             {/* Legend */}
             <div className="mt-6 flex flex-wrap items-center justify-center gap-4 text-sm">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-secondary" />
-                <span className="text-muted-foreground">No debates</span>
+                <div className="w-4 h-4 rounded bg-green-100 dark:bg-green-900/30" />
+                <span className="text-muted-foreground">No debates (peaceful)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-orange-200 dark:bg-orange-800/40" />
-                <span className="text-muted-foreground">Few</span>
+                <div className="w-4 h-4 rounded bg-yellow-200 dark:bg-yellow-800/40" />
+                <span className="text-muted-foreground">1-2 debates (light)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 rounded bg-orange-400 dark:bg-orange-600/60" />
-                <span className="text-muted-foreground">Many</span>
+                <div className="w-4 h-4 rounded bg-orange-300 dark:bg-orange-700/50" />
+                <span className="text-muted-foreground">3-5 debates (moderate)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-husband" />
-                <span className="text-muted-foreground">Husband</span>
+                <div className="w-4 h-4 rounded bg-red-400 dark:bg-red-600" />
+                <span className="text-muted-foreground">6+ debates or &gt;1h (high)</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-wife" />
-                <span className="text-muted-foreground">Wife</span>
+                <div className="w-4 h-4 rounded bg-purple-400 dark:bg-purple-600" />
+                <span className="text-muted-foreground">Both active (simultaneous)</span>
               </div>
             </div>
           </div>
