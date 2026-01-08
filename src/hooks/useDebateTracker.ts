@@ -1,9 +1,50 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Partner, DebateSession } from '@/types/debate';
+import { subDays, subHours, subMinutes } from 'date-fns';
 
 const STORAGE_KEY = 'debate-sessions';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
+
+// Generate sample data for demo purposes
+const generateSampleData = (): DebateSession[] => {
+  const now = new Date();
+  const samples: DebateSession[] = [];
+  
+  // Generate some sample sessions over the past 30 days
+  const sessionData = [
+    { daysAgo: 1, hoursAgo: 2, partner: 'husband' as Partner, duration: 312 },
+    { daysAgo: 1, hoursAgo: 5, partner: 'wife' as Partner, duration: 187 },
+    { daysAgo: 2, hoursAgo: 3, partner: 'husband' as Partner, duration: 425 },
+    { daysAgo: 2, hoursAgo: 6, partner: 'wife' as Partner, duration: 298 },
+    { daysAgo: 2, hoursAgo: 8, partner: 'husband' as Partner, duration: 156 },
+    { daysAgo: 3, hoursAgo: 4, partner: 'wife' as Partner, duration: 512 },
+    { daysAgo: 5, hoursAgo: 2, partner: 'husband' as Partner, duration: 234 },
+    { daysAgo: 5, hoursAgo: 3, partner: 'wife' as Partner, duration: 189 },
+    { daysAgo: 5, hoursAgo: 5, partner: 'husband' as Partner, duration: 445 },
+    { daysAgo: 5, hoursAgo: 7, partner: 'wife' as Partner, duration: 312 },
+    { daysAgo: 7, hoursAgo: 1, partner: 'wife' as Partner, duration: 623 },
+    { daysAgo: 10, hoursAgo: 4, partner: 'husband' as Partner, duration: 178 },
+    { daysAgo: 12, hoursAgo: 2, partner: 'wife' as Partner, duration: 267 },
+    { daysAgo: 12, hoursAgo: 5, partner: 'husband' as Partner, duration: 398 },
+    { daysAgo: 15, hoursAgo: 3, partner: 'wife' as Partner, duration: 145 },
+  ];
+
+  sessionData.forEach(({ daysAgo, hoursAgo, partner, duration }) => {
+    const startTime = subMinutes(subHours(subDays(now, daysAgo), hoursAgo), duration / 60);
+    const endTime = subHours(subDays(now, daysAgo), hoursAgo);
+    
+    samples.push({
+      id: generateId(),
+      partner,
+      startTime,
+      endTime,
+      duration,
+    });
+  });
+
+  return samples;
+};
 
 export const useDebateTracker = () => {
   const [husbandActive, setHusbandActive] = useState(false);
@@ -32,7 +73,16 @@ export const useDebateTracker = () => {
         })));
       } catch (e) {
         console.error('Failed to parse sessions:', e);
+        // Load sample data if parsing fails
+        const sampleData = generateSampleData();
+        setSessions(sampleData);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleData));
       }
+    } else {
+      // No stored data, load sample data for demo
+      const sampleData = generateSampleData();
+      setSessions(sampleData);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sampleData));
     }
   }, []);
 
