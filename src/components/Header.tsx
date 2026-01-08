@@ -6,9 +6,10 @@ interface HeaderProps {
   permission: NotificationPermission;
   onRequestPermission: () => void;
   onOpenCalendar: () => void;
+  onOpenSettings?: () => void;
 }
 
-export const Header = ({ permission, onRequestPermission, onOpenCalendar }: HeaderProps) => {
+export const Header = ({ permission, onRequestPermission, onOpenCalendar, onOpenSettings }: HeaderProps) => {
   return (
     <motion.header
       initial={{ opacity: 0, y: -20 }}
@@ -56,7 +57,12 @@ export const Header = ({ permission, onRequestPermission, onOpenCalendar }: Head
         >
           <Calendar className="w-5 h-5" />
         </Button>
-        <Button variant="ghost" size="icon" className="rounded-xl">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="rounded-xl"
+          onClick={onOpenSettings}
+        >
           <Settings className="w-5 h-5" />
         </Button>
       </div>

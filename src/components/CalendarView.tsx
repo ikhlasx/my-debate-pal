@@ -26,6 +26,7 @@ import {
 } from 'date-fns';
 import { DebateSession } from '@/types/debate';
 import { formatDuration } from '@/hooks/useNotifications';
+import { calculateTotalOverlapTime } from '@/lib/sessionUtils';
 
 interface CalendarViewProps {
   sessions: DebateSession[];
@@ -70,7 +71,7 @@ export const CalendarView = ({ sessions, onClose }: CalendarViewProps) => {
       totalTime: daySessions.reduce((acc, s) => acc + (s.duration || 0), 0),
       husbandTime: husbandSessions.reduce((acc, s) => acc + (s.duration || 0), 0),
       wifeTime: wifeSessions.reduce((acc, s) => acc + (s.duration || 0), 0),
-      overlapTime: 0, // TODO: Calculate actual overlap
+      overlapTime: calculateTotalOverlapTime(husbandSessions, wifeSessions),
     };
   };
 
@@ -279,6 +280,26 @@ const DayAnalyticsPanel = ({ analytics }: DayAnalyticsPanelProps) => {
           <div className="text-xs text-muted-foreground">Total Time</div>
         </div>
       </div>
+
+      {/* Overlap Time */}
+      {analytics.overlapTime > 0 && (
+        <div className="bg-gradient-to-r from-husband/10 to-wife/10 rounded-xl p-4 border-2 border-dashed border-warning/30">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-lg bg-warning/10">
+              <Flame className="w-5 h-5 text-warning" />
+            </div>
+            <div className="flex-1">
+              <div className="font-semibold">Both Debating Time</div>
+              <div className="text-sm text-muted-foreground">
+                Time when both were actively debating
+              </div>
+            </div>
+            <div className="font-display font-bold text-warning text-lg">
+              {formatDuration(analytics.overlapTime)}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Partner Breakdown */}
       <div className="space-y-3">
