@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import { useDebateTracker } from '@/hooks/useDebateTracker';
 import { useNotifications } from '@/hooks/useNotifications';
@@ -8,8 +8,11 @@ import { StatsCard } from '@/components/StatsCard';
 import { SessionHistory } from '@/components/SessionHistory';
 import { ToastContainer } from '@/components/ToastContainer';
 import { BothActiveIndicator } from '@/components/BothActiveIndicator';
+import { CalendarView } from '@/components/CalendarView';
 
 const Index = () => {
+  const [showCalendar, setShowCalendar] = useState(false);
+
   const {
     husbandActive,
     wifeActive,
@@ -81,7 +84,11 @@ const Index = () => {
   return (
     <div className="min-h-screen px-4 pb-8">
       <div className="max-w-2xl mx-auto">
-        <Header permission={permission} onRequestPermission={requestPermission} />
+        <Header 
+          permission={permission} 
+          onRequestPermission={requestPermission}
+          onOpenCalendar={() => setShowCalendar(true)}
+        />
 
         {/* Both Active Indicator */}
         <AnimatePresence>
@@ -114,6 +121,16 @@ const Index = () => {
 
         {/* Toast Notifications */}
         <ToastContainer toasts={toasts} onDismiss={dismissToast} />
+
+        {/* Calendar Modal */}
+        <AnimatePresence>
+          {showCalendar && (
+            <CalendarView 
+              sessions={sessions} 
+              onClose={() => setShowCalendar(false)} 
+            />
+          )}
+        </AnimatePresence>
       </div>
     </div>
   );

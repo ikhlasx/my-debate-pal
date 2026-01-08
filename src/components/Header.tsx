@@ -1,13 +1,14 @@
 import { motion } from 'framer-motion';
-import { Heart, Settings, Bell } from 'lucide-react';
+import { Heart, Settings, Bell, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface HeaderProps {
   permission: NotificationPermission;
   onRequestPermission: () => void;
+  onOpenCalendar: () => void;
 }
 
-export const Header = ({ permission, onRequestPermission }: HeaderProps) => {
+export const Header = ({ permission, onRequestPermission, onOpenCalendar }: HeaderProps) => {
   return (
     <motion.header
       initial={{ opacity: 0, y: -20 }}
@@ -44,9 +45,17 @@ export const Header = ({ permission, onRequestPermission }: HeaderProps) => {
             className="gap-2"
           >
             <Bell className="w-4 h-4" />
-            Enable Alerts
+            <span className="hidden sm:inline">Enable Alerts</span>
           </Button>
         )}
+        <Button 
+          variant="outline" 
+          size="icon" 
+          className="rounded-xl"
+          onClick={onOpenCalendar}
+        >
+          <Calendar className="w-5 h-5" />
+        </Button>
         <Button variant="ghost" size="icon" className="rounded-xl">
           <Settings className="w-5 h-5" />
         </Button>
