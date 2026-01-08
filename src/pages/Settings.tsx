@@ -3,11 +3,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Save, Users } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Save, Users } from 'lucide-react';
 import { getPartnerSettings, savePartnerSettings, PartnerSettings } from '@/lib/partnerSettings';
 import { useToast } from '@/hooks/use-toast';
 import { PushNotificationPanel } from '@/components/PushNotificationPanel';
+import { BackButton } from '@/components/BackButton';
 
 const Settings = () => {
   const [settings, setSettings] = useState<PartnerSettings>(getPartnerSettings());
@@ -25,11 +25,7 @@ const Settings = () => {
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-50 to-zinc-100 dark:from-slate-950 dark:via-gray-950 dark:to-zinc-950 p-4 md:p-8">
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="flex items-center gap-4">
-          <Link to="/">
-            <Button variant="ghost" size="icon" className="rounded-xl">
-              <ArrowLeft className="w-5 h-5" />
-            </Button>
-          </Link>
+          <BackButton to="/" />
           <div>
             <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 dark:from-gray-100 dark:to-gray-400 bg-clip-text text-transparent">
               Settings

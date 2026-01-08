@@ -6,6 +6,7 @@ import { Calendar } from '@/components/ui/calendar';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Crown, Trophy, TrendingUp, TrendingDown, Clock, Calendar as CalendarIcon, Activity, Flame, Heart, Zap, ArrowUpRight, ArrowDownRight, Minus, Sparkles, Target, Award } from 'lucide-react';
+import { BackButton } from '@/components/BackButton';
 import { apiClient, WeeklyStats, MonthlyStats, AnalyticsStats, DailyBreakdown, CalendarHeatmapData } from '@/lib/api';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, subMonths } from 'date-fns';
 import { 
@@ -351,16 +352,20 @@ const Analytics = () => {
     <div className="min-h-screen bg-white p-4 md:p-8">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="text-center space-y-2">
-          <div className="flex items-center justify-center gap-3">
-            <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-600 to-pink-600 shadow-lg shadow-indigo-500/25">
-              <Activity className="w-6 h-6 text-white" />
+        <div className="flex items-center justify-between mb-6">
+          <BackButton to="/" />
+          <div className="text-center space-y-2 flex-1">
+            <div className="flex items-center justify-center gap-3">
+              <div className="p-2 rounded-xl bg-gradient-to-br from-indigo-600 to-pink-600 shadow-lg shadow-indigo-500/25">
+                <Activity className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-4xl font-bold text-gray-900">
+                Analytics Dashboard
+              </h1>
             </div>
-            <h1 className="text-4xl font-bold text-gray-900">
-              Analytics Dashboard
-            </h1>
+            <p className="text-gray-600 text-lg">Comprehensive debate insights and statistics</p>
           </div>
-          <p className="text-gray-600 text-lg">Comprehensive debate insights and statistics</p>
+          <div className="w-9" /> {/* Spacer for alignment */}
         </div>
 
         {/* Month Comparison Banner */}
