@@ -2,87 +2,128 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 30 30% 98%;
+    --foreground: 240 10% 15%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 240 10% 15%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover-foreground: 240 10% 15%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 240 10% 15%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 30 20% 94%;
+    --secondary-foreground: 240 10% 25%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 30 15% 92%;
+    --muted-foreground: 240 5% 45%;
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 30 20% 94%;
+    --accent-foreground: 240 10% 15%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 30 15% 88%;
+    --input: 30 15% 88%;
+    --ring: 240 10% 15%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
+
+    /* Partner Colors */
+    --husband: 217 91% 60%;
+    --husband-light: 217 91% 95%;
+    --husband-glow: 217 91% 70%;
+    
+    --wife: 350 80% 60%;
+    --wife-light: 350 80% 95%;
+    --wife-glow: 350 80% 70%;
+
+    /* Status Colors */
+    --success: 142 71% 45%;
+    --success-light: 142 71% 95%;
+    --warning: 38 92% 50%;
+    --warning-light: 38 92% 95%;
+    --info: 200 95% 55%;
+    --info-light: 200 95% 95%;
+
+    /* Gradients */
+    --gradient-husband: linear-gradient(135deg, hsl(217, 91%, 60%), hsl(230, 91%, 55%));
+    --gradient-wife: linear-gradient(135deg, hsl(350, 80%, 60%), hsl(320, 80%, 55%));
+    --gradient-both: linear-gradient(135deg, hsl(38, 92%, 50%), hsl(25, 92%, 55%));
+    --gradient-background: linear-gradient(180deg, hsl(30, 30%, 98%) 0%, hsl(30, 25%, 95%) 100%);
+
+    /* Shadows */
+    --shadow-soft: 0 4px 20px -2px hsl(240 10% 15% / 0.08);
+    --shadow-husband: 0 8px 30px -4px hsl(217 91% 60% / 0.35);
+    --shadow-wife: 0 8px 30px -4px hsl(350 80% 60% / 0.35);
+    --shadow-elevated: 0 12px 40px -8px hsl(240 10% 15% / 0.15);
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: 240 10% 8%;
+    --foreground: 30 20% 95%;
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+    --card: 240 10% 12%;
+    --card-foreground: 30 20% 95%;
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 240 10% 12%;
+    --popover-foreground: 30 20% 95%;
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+    --primary: 30 20% 95%;
+    --primary-foreground: 240 10% 8%;
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
+    --secondary: 240 8% 18%;
+    --secondary-foreground: 30 20% 90%;
 
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
+    --muted: 240 8% 20%;
+    --muted-foreground: 30 10% 55%;
 
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --accent: 240 8% 18%;
+    --accent-foreground: 30 20% 95%;
 
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive-foreground: 30 20% 95%;
 
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --border: 240 8% 20%;
+    --input: 240 8% 20%;
+    --ring: 30 20% 80%;
+
+    --husband: 217 91% 65%;
+    --husband-light: 217 50% 20%;
+    --husband-glow: 217 91% 75%;
+    
+    --wife: 350 80% 65%;
+    --wife-light: 350 50% 20%;
+    --wife-glow: 350 80% 75%;
+
+    --success: 142 71% 50%;
+    --success-light: 142 40% 15%;
+    --warning: 38 92% 55%;
+    --warning-light: 38 50% 15%;
+    --info: 200 95% 60%;
+    --info-light: 200 50% 15%;
+
+    --shadow-soft: 0 4px 20px -2px hsl(0 0% 0% / 0.3);
+    --shadow-husband: 0 8px 30px -4px hsl(217 91% 60% / 0.4);
+    --shadow-wife: 0 8px 30px -4px hsl(350 80% 60% / 0.4);
+    --shadow-elevated: 0 12px 40px -8px hsl(0 0% 0% / 0.4);
+
     --sidebar-background: 240 5.9% 10%;
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 224.3 76.3% 48%;
@@ -100,6 +141,75 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans antialiased;
+    font-family: 'Inter', sans-serif;
+    background: var(--gradient-background);
+    min-height: 100vh;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Space Grotesk', sans-serif;
+  }
+}
+
+@layer components {
+  .card-elevated {
+    @apply bg-card rounded-2xl;
+    box-shadow: var(--shadow-soft);
+  }
+
+  .timer-display {
+    font-family: 'Space Grotesk', monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 0.02em;
+  }
+
+  .pulse-husband {
+    animation: pulse-husband 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .pulse-wife {
+    animation: pulse-wife 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  .glow-husband {
+    box-shadow: var(--shadow-husband);
+  }
+
+  .glow-wife {
+    box-shadow: var(--shadow-wife);
+  }
+}
+
+@layer utilities {
+  @keyframes pulse-husband {
+    0%, 100% {
+      box-shadow: 0 0 0 0 hsl(217 91% 60% / 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 12px hsl(217 91% 60% / 0);
+    }
+  }
+
+  @keyframes pulse-wife {
+    0%, 100% {
+      box-shadow: 0 0 0 0 hsl(350 80% 60% / 0.4);
+    }
+    50% {
+      box-shadow: 0 0 0 12px hsl(350 80% 60% / 0);
+    }
+  }
+
+  @keyframes float {
+    0%, 100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-5px);
+    }
+  }
+
+  .animate-float {
+    animation: float 3s ease-in-out infinite;
   }
 }
