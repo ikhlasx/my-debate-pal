@@ -12,14 +12,41 @@ from dotenv import load_dotenv
 
 from supabase import create_client, Client
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (only for local dev, Vercel uses env vars)
+# Don't fail if .env doesn't exist (it won't in production)
+try:
+    load_dotenv()
+except Exception:
+    pass  # .env file not required in production
+
 from schemas import (
     SessionCreate, SessionResponse, SessionUpdate,
     NotificationCreate, NotificationResponse,
     WeeklyStats, MonthlyStats, AnalyticsStats
 )
-from analytics_supabase import calculate_analytics
+
+# Import analytics (lazy - only used in endpoints)
+try:
+    from analytics_supabase import calculate_analytics
+except ImportError as e:
+    print(f"[WARNING] Failed to import analytics_supabase: {e}")
+    # Create a dummy calculate_analytics to prevent crashes
+    class calculate_analytics:
+        @staticmethod
+        def get_weekly_stats(*args, **kwargs):
+            raise HTTPException(status_code=500, detail="Analytics module not available")
+        @staticmethod
+        def get_monthly_stats(*args, **kwargs):
+            raise HTTPException(status_code=500, detail="Analytics module not available")
+        @staticmethod
+        def get_general_stats(*args, **kwargs):
+            raise HTTPException(status_code=500, detail="Analytics module not available")
+        @staticmethod
+        def get_daily_stats(*args, **kwargs):
+            raise HTTPException(status_code=500, detail="Analytics module not available")
+        @staticmethod
+        def get_heatmap_data(*args, **kwargs):
+            raise HTTPException(status_code=500, detail="Analytics module not available")
 
 # Demo user ID - single user for the application
 DEMO_USER_ID = "demo-user-12345"
@@ -32,26 +59,25 @@ def get_supabase_client() -> Client:
     
     if not supabase_url or not supabase_key:
         raise ValueError(
-            "SUPABASE_URL and SUPABASE_ANON_KEY environment variables must be set.\n"
+            "SUPABASE_URL and SUPABASE_ANON_KEY environment variables must be set in Vercel.\n"
+            "For Vercel: Go to Dashboard → Project → Settings → Environment Variables\n"
             "Get these from your Supabase project settings:\n"
             "1. Go to https://app.supabase.com\n"
             "2. Select your project\n"
             "3. Go to Settings > API\n"
             "4. Copy the URL and anon/public key\n"
-            "5. Update your backend/.env file with these values"
+            "5. Add them to Vercel Environment Variables"
         )
     
     # Check if placeholder values are still being used
-    if "your-project-id" in supabase_url or "your-anon-key" in supabase_key:
+    if supabase_url and ("your-project-id" in supabase_url or supabase_url == ""):
         raise ValueError(
-            "⚠️  Please update your .env file with actual Supabase credentials!\n\n"
-            "Your .env file still contains placeholder values.\n"
-            "Get your credentials from:\n"
-            "1. https://app.supabase.com\n"
-            "2. Select your project\n"
-            "3. Settings > API\n"
-            "4. Copy the Project URL and anon public key\n"
-            "5. Update backend/.env with these values"
+            "SUPABASE_URL contains placeholder or is empty. Please set the actual Supabase project URL in Vercel Environment Variables."
+        )
+    
+    if supabase_key and ("your-anon-key" in supabase_key or supabase_key == ""):
+        raise ValueError(
+            "SUPABASE_ANON_KEY contains placeholder or is empty. Please set the actual Supabase anon public key in Vercel Environment Variables."
         )
     
     try:
@@ -69,32 +95,65 @@ def get_supabase_client() -> Client:
             ) from e
         raise
     
-    # Ensure demo user exists
+    # Ensure demo user exists (only if tables exist, don't crash if they don't)
     try:
         result = client.table("users").select("partner_id").eq("partner_id", DEMO_USER_ID).execute()
         if not result.data:
-            client.table("users").insert({
-                "partner_id": DEMO_USER_ID,
-                "email": "demo@debatepal.com",
-                "created_at": datetime.utcnow().isoformat(),
-                "updated_at": datetime.utcnow().isoformat()
-            }).execute()
-            print(f"[OK] Demo user created: {DEMO_USER_ID}")
+            try:
+                client.table("users").insert({
+                    "partner_id": DEMO_USER_ID,
+                    "email": "demo@debatepal.com",
+                    "created_at": datetime.utcnow().isoformat(),
+                    "updated_at": datetime.utcnow().isoformat()
+                }).execute()
+                print(f"[OK] Demo user created: {DEMO_USER_ID}")
+            except Exception as insert_error:
+                # Table might not exist yet - that's okay, user can run migration
+                print(f"[INFO] Could not create demo user (tables may not exist yet): {insert_error}")
     except Exception as e:
-        print(f"[WARNING] Note: {e}")
-        print("[WARNING] Make sure you've run the SQL migration in Supabase SQL Editor")
+        # Don't crash if we can't check/create user - tables might not exist
+        print(f"[INFO] Note: {e}")
+        print("[INFO] Make sure you've run the SQL migration in Supabase SQL Editor")
     
     return client
 
 # Initialize Supabase (lazy initialization for Vercel)
 supabase = None
+supabase_error = None
 
 def get_supabase():
     """Get or initialize Supabase client (lazy loading for Vercel)"""
-    global supabase
-    if supabase is None:
+    global supabase, supabase_error
+    if supabase is not None:
+        return supabase
+    
+    if supabase_error is not None:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database configuration error: {supabase_error}. Please check SUPABASE_URL and SUPABASE_ANON_KEY environment variables in Vercel Dashboard → Settings → Environment Variables."
+        )
+    
+    # Try to initialize
+    try:
         supabase = get_supabase_client()
-    return supabase
+        return supabase
+    except ValueError as e:
+        # Configuration error - environment variables missing or invalid
+        supabase_error = str(e)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database configuration error: {e}. Please check SUPABASE_URL and SUPABASE_ANON_KEY environment variables in Vercel Dashboard → Settings → Environment Variables."
+        )
+    except Exception as e:
+        # Other errors
+        supabase_error = f"Failed to connect to Supabase: {str(e)}"
+        print(f"[ERROR] Failed to initialize Supabase: {e}")
+        import traceback
+        print(f"[ERROR] Traceback: {traceback.format_exc()}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database connection error: {e}. Please verify your Supabase credentials are correct and tables exist. Check Vercel Function Logs for details."
+        )
 
 app = FastAPI(title="Debate Tracker API (Supabase)", version="2.0.0")
 
@@ -172,14 +231,46 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
-# Health check
+# Health check - should work even if Supabase isn't configured
 @app.get("/")
 async def root():
-    return {
+    """Health check endpoint - doesn't require Supabase connection"""
+    global supabase, supabase_error
+    
+    db_status = "not_initialized"
+    db_error = None
+    
+    if supabase is not None:
+        db_status = "connected"
+    elif supabase_error is not None:
+        db_status = "error"
+        db_error = supabase_error
+    else:
+        # Try to initialize (but don't fail the endpoint if it fails)
+        try:
+            test_supabase = get_supabase()
+            db_status = "connected"
+        except HTTPException:
+            # HTTPException means we should show the error
+            raise
+        except Exception as e:
+            db_status = "error"
+            db_error = str(e)
+    
+    response = {
         "message": "Debate Tracker API (Supabase)",
         "status": "running",
-        "demo_user_id": DEMO_USER_ID
+        "demo_user_id": DEMO_USER_ID,
+        "database": {
+            "status": db_status,
+        }
     }
+    
+    if db_error:
+        response["database"]["error"] = db_error
+        response["database"]["help"] = "Check SUPABASE_URL and SUPABASE_ANON_KEY in Vercel Environment Variables (Dashboard → Settings → Environment Variables)"
+    
+    return response
 
 # Session endpoints
 @app.post("/api/sessions", response_model=SessionResponse)
