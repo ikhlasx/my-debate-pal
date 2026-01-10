@@ -1,8 +1,11 @@
 import { motion } from 'framer-motion';
-import { Heart, Settings, Bell, BellRing, Calendar, BarChart3 } from 'lucide-react';
+import { Heart, Settings, Bell, BellRing, Calendar, BarChart3, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
 import { Link } from 'react-router-dom';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useDemoMode } from '@/hooks/useDemoMode';
 import {
   Tooltip,
   TooltipContent,
@@ -19,6 +22,7 @@ interface HeaderProps {
 
 export const Header = ({ permission, onRequestPermission, onOpenCalendar }: HeaderProps) => {
   const { isSubscribed, isSupported, subscribe, isLoading } = usePushNotifications();
+  const { isDemoMode, toggleDemoMode } = useDemoMode();
 
   const handleNotificationClick = async () => {
     if (isSubscribed) {
@@ -63,6 +67,34 @@ export const Header = ({ permission, onRequestPermission, onOpenCalendar }: Head
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Demo Mode Toggle */}
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl border border-border bg-background hover:bg-secondary/50 transition-colors">
+                <User className={`w-4 h-4 ${isDemoMode ? 'text-indigo-600' : 'text-muted-foreground'}`} />
+                <Switch
+                  checked={isDemoMode}
+                  onCheckedChange={toggleDemoMode}
+                  id="demo-mode"
+                  className="data-[state=checked]:bg-indigo-600"
+                />
+                <Label 
+                  htmlFor="demo-mode" 
+                  className={`text-xs font-medium cursor-pointer ${isDemoMode ? 'text-indigo-600' : 'text-muted-foreground'}`}
+                >
+                  <span className="hidden sm:inline">Demo</span>
+                </Label>
+              </div>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isDemoMode 
+                ? 'Demo mode: Showing sample data. Click to switch to real user mode.' 
+                : 'Enable demo mode to see sample analytics and calendar data'}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+
         {/* Push Notification Button */}
         <TooltipProvider>
           <Tooltip>

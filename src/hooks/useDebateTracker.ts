@@ -3,9 +3,10 @@ import { Partner, DebateSession } from '@/types/debate';
 import { subDays, subHours, subMinutes } from 'date-fns';
 import { apiClient, wsClient, SessionResponse } from '@/lib/api';
 import { getPartnerName } from '@/lib/partnerSettings';
+import { useDemoMode } from './useDemoMode';
+import { generateFakeLastMonthSessions } from '@/lib/fakeDataGenerator';
 
 const STORAGE_KEY = 'debate-sessions';
-const USE_BACKEND = import.meta.env.VITE_USE_BACKEND !== 'false';
 
 const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -67,6 +68,7 @@ const generateSampleData = (): DebateSession[] => {
 };
 
 export const useDebateTracker = () => {
+  const { isDemoMode } = useDemoMode();
   const [husbandActive, setHusbandActive] = useState(false);
   const [wifeActive, setWifeActive] = useState(false);
   const [husbandTime, setHusbandTime] = useState(0);
@@ -80,35 +82,55 @@ export const useDebateTracker = () => {
   const husbandIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const wifeIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load sessions from API or localStorage
+  // Reset active timers when switching to demo mode
+  useEffect(() => {
+    if (isDemoMode) {
+      // Stop all active timers when entering demo mode
+      setHusbandActive(false);
+      setWifeActive(false);
+      setHusbandTime(0);
+      setWifeTime(0);
+      if (husbandIntervalRef.current) {
+        clearInterval(husbandIntervalRef.current);
+      }
+      if (wifeIntervalRef.current) {
+        clearInterval(wifeIntervalRef.current);
+      }
+      husbandStartRef.current = null;
+      wifeStartRef.current = null;
+      setLastHusbandSession(null);
+      setLastWifeSession(null);
+    }
+  }, [isDemoMode]);
+
+  // Load sessions from API or localStorage, or use demo data
   useEffect(() => {
     const loadSessions = async () => {
-      if (USE_BACKEND) {
-        try {
-          const apiSessions = await apiClient.getSessions();
-          const appSessions = apiSessions.map(apiToAppSession);
-          setSessions(appSessions);
-          // Also save to localStorage as backup
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(appSessions));
-        } catch (error) {
-          console.error('Failed to load sessions from API, falling back to localStorage:', error);
-          // Fallback to localStorage
-          const stored = localStorage.getItem(STORAGE_KEY);
-          if (stored) {
-            try {
-              const parsed = JSON.parse(stored);
-              setSessions(parsed.map((s: any) => ({
-                ...s,
-                startTime: new Date(s.startTime),
-                endTime: s.endTime ? new Date(s.endTime) : undefined,
-              })));
-            } catch (e) {
-              console.error('Failed to parse sessions:', e);
-            }
-          }
-        }
-      } else {
-        // Use localStorage only
+      if (isDemoMode) {
+        // Use fake sessions for demo mode (local only, no backend)
+        const fakeSessions = generateFakeLastMonthSessions();
+        setSessions(fakeSessions);
+        // Also save to localStorage with a demo marker
+        localStorage.setItem(STORAGE_KEY + '_demo', JSON.stringify(fakeSessions));
+        return;
+      }
+
+      // REAL USER MODE: Always use Supabase backend (shared database for both partners)
+      // Reset demo data if switching from demo mode
+      localStorage.removeItem(STORAGE_KEY + '_demo');
+
+      // For real users, always use the backend API (Supabase)
+      // This ensures both husband and wife see the same shared data
+      try {
+        const apiSessions = await apiClient.getSessions();
+        const appSessions = apiSessions.map(apiToAppSession);
+        setSessions(appSessions);
+        // Also save to localStorage as backup (but backend is primary)
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(appSessions));
+      } catch (error) {
+        console.error('Failed to load sessions from Supabase API:', error);
+        console.error('Make sure the backend is running with main_supabase.py and Supabase is configured');
+        // Try to load from localStorage as a last resort, but warn the user
         const stored = localStorage.getItem(STORAGE_KEY);
         if (stored) {
           try {
@@ -118,39 +140,48 @@ export const useDebateTracker = () => {
               startTime: new Date(s.startTime),
               endTime: s.endTime ? new Date(s.endTime) : undefined,
             })));
+            console.warn('Using cached localStorage data. Backend connection failed.');
           } catch (e) {
             console.error('Failed to parse sessions:', e);
+            setSessions([]);
           }
+        } else {
+          // No stored sessions - reset to empty
+          setSessions([]);
         }
       }
     };
 
     loadSessions();
 
-    // Set up WebSocket listener for real-time updates
-    if (USE_BACKEND) {
+    // Set up WebSocket listener for real-time updates (only in real user mode)
+    if (!isDemoMode) {
+      // Connect to WebSocket for real-time sync between devices
       wsClient.connect();
       const handleSessionUpdate = (data: any) => {
-        loadSessions(); // Reload sessions when updated
+        loadSessions(); // Reload sessions when updated (sync across devices)
       };
       wsClient.on('session_created', handleSessionUpdate);
       wsClient.on('session_updated', handleSessionUpdate);
       wsClient.on('session_deleted', handleSessionUpdate);
+      wsClient.on('notification', handleSessionUpdate);
 
       return () => {
         wsClient.off('session_created', handleSessionUpdate);
         wsClient.off('session_updated', handleSessionUpdate);
         wsClient.off('session_deleted', handleSessionUpdate);
+        wsClient.off('notification', handleSessionUpdate);
+        wsClient.disconnect();
       };
     }
-  }, []);
+  }, [isDemoMode]);
 
-  // Save sessions to localStorage as backup
+  // Save sessions to localStorage as backup (only for real user mode)
   useEffect(() => {
-    if (sessions.length > 0) {
+    if (!isDemoMode && sessions.length > 0) {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
     }
-  }, [sessions]);
+  }, [sessions, isDemoMode]);
 
   // Husband timer
   useEffect(() => {
@@ -199,6 +230,11 @@ export const useDebateTracker = () => {
   }, [wifeActive]);
 
   const toggleHusband = useCallback(async () => {
+    // Don't allow toggling in demo mode
+    if (isDemoMode) {
+      return { action: 'start' as const, partner: 'husband' as Partner };
+    }
+
     if (!husbandActive) {
       // Starting
       setHusbandActive(true);
@@ -215,35 +251,32 @@ export const useDebateTracker = () => {
         duration: husbandTime,
       };
       
-      // Save to API if enabled
-      if (USE_BACKEND) {
+      // REAL USER MODE: Save to Supabase (shared database for both partners)
+      try {
+        const apiSession = await apiClient.createSession(appToApiSession(session));
+        const savedSession = apiToAppSession(apiSession);
+        setSessions(prev => [...prev, savedSession]);
+        setLastHusbandSession(savedSession);
+        
+        // Send notification (will be broadcast to all connected devices via WebSocket)
         try {
-          const apiSession = await apiClient.createSession(appToApiSession(session));
-          const savedSession = apiToAppSession(apiSession);
-          setSessions(prev => [...prev, savedSession]);
-          setLastHusbandSession(savedSession);
-          
-          // Send notification
-          try {
-            await apiClient.createNotification({
-              type: 'debate_end',
-              title: `${getPartnerName('husband')} Ended Debate`,
-              message: `Duration: ${Math.floor(husbandTime / 60)}:${String(husbandTime % 60).padStart(2, '0')}`,
-              partner: 'husband',
-              data: { duration: husbandTime },
-            });
-          } catch (notifError) {
-            console.error('Failed to send notification:', notifError);
-          }
-        } catch (error) {
-          console.error('Failed to save session to API:', error);
-          // Fallback to local storage
-          setSessions(prev => [...prev, session]);
-          setLastHusbandSession(session);
+          await apiClient.createNotification({
+            type: 'debate_end',
+            title: `${getPartnerName('husband')} Ended Debate`,
+            message: `Duration: ${Math.floor(husbandTime / 60)}:${String(husbandTime % 60).padStart(2, '0')}`,
+            partner: 'husband',
+            data: { duration: husbandTime },
+          });
+        } catch (notifError) {
+          console.error('Failed to send notification:', notifError);
         }
-      } else {
+      } catch (error) {
+        console.error('Failed to save session to Supabase:', error);
+        console.error('Make sure the backend is running with main_supabase.py');
+        // Still update local state for immediate feedback, but warn user
         setSessions(prev => [...prev, session]);
         setLastHusbandSession(session);
+        alert('Warning: Could not save to database. Data may not sync across devices.');
       }
       
       setHusbandActive(false);
@@ -251,9 +284,14 @@ export const useDebateTracker = () => {
       husbandStartRef.current = null;
       return { action: 'end' as const, partner: 'husband' as Partner, duration: husbandTime };
     }
-  }, [husbandActive, husbandTime]);
+  }, [husbandActive, husbandTime, isDemoMode]);
 
   const toggleWife = useCallback(async () => {
+    // Don't allow toggling in demo mode
+    if (isDemoMode) {
+      return { action: 'start' as const, partner: 'wife' as Partner };
+    }
+
     if (!wifeActive) {
       // Starting
       setWifeActive(true);
@@ -270,35 +308,32 @@ export const useDebateTracker = () => {
         duration: wifeTime,
       };
       
-      // Save to API if enabled
-      if (USE_BACKEND) {
+      // REAL USER MODE: Save to Supabase (shared database for both partners)
+      try {
+        const apiSession = await apiClient.createSession(appToApiSession(session));
+        const savedSession = apiToAppSession(apiSession);
+        setSessions(prev => [...prev, savedSession]);
+        setLastWifeSession(savedSession);
+        
+        // Send notification (will be broadcast to all connected devices via WebSocket)
         try {
-          const apiSession = await apiClient.createSession(appToApiSession(session));
-          const savedSession = apiToAppSession(apiSession);
-          setSessions(prev => [...prev, savedSession]);
-          setLastWifeSession(savedSession);
-          
-          // Send notification
-          try {
-            await apiClient.createNotification({
-              type: 'debate_end',
-              title: `${getPartnerName('wife')} Ended Debate`,
-              message: `Duration: ${Math.floor(wifeTime / 60)}:${String(wifeTime % 60).padStart(2, '0')}`,
-              partner: 'wife',
-              data: { duration: wifeTime },
-            });
-          } catch (notifError) {
-            console.error('Failed to send notification:', notifError);
-          }
-        } catch (error) {
-          console.error('Failed to save session to API:', error);
-          // Fallback to local storage
-          setSessions(prev => [...prev, session]);
-          setLastWifeSession(session);
+          await apiClient.createNotification({
+            type: 'debate_end',
+            title: `${getPartnerName('wife')} Ended Debate`,
+            message: `Duration: ${Math.floor(wifeTime / 60)}:${String(wifeTime % 60).padStart(2, '0')}`,
+            partner: 'wife',
+            data: { duration: wifeTime },
+          });
+        } catch (notifError) {
+          console.error('Failed to send notification:', notifError);
         }
-      } else {
+      } catch (error) {
+        console.error('Failed to save session to Supabase:', error);
+        console.error('Make sure the backend is running with main_supabase.py');
+        // Still update local state for immediate feedback, but warn user
         setSessions(prev => [...prev, session]);
         setLastWifeSession(session);
+        alert('Warning: Could not save to database. Data may not sync across devices.');
       }
       
       setWifeActive(false);
@@ -306,7 +341,7 @@ export const useDebateTracker = () => {
       wifeStartRef.current = null;
       return { action: 'end' as const, partner: 'wife' as Partner, duration: wifeTime };
     }
-  }, [wifeActive, wifeTime]);
+  }, [wifeActive, wifeTime, isDemoMode]);
 
   const getTodayStats = useCallback(() => {
     const today = new Date().toDateString();

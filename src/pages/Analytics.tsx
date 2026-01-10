@@ -17,9 +17,8 @@ import {
   calculateDailyBreakdownFromSessions
 } from '@/lib/analyticsUtils';
 import { getPartnerName } from '@/lib/partnerSettings';
-import { generateFakeLastMonthStats, calculateMonthComparison, MonthComparison } from '@/lib/fakeDataGenerator';
-
-const USE_BACKEND = import.meta.env.VITE_USE_BACKEND !== 'false';
+import { generateFakeLastMonthStats, generateFakeMonthlyStats, generateFakeLastWeekStats, generateFakeGeneralStats, generateFakeLastMonthSessions, calculateMonthComparison, MonthComparison } from '@/lib/fakeDataGenerator';
+import { useDemoMode } from '@/hooks/useDemoMode';
 
 // Custom colors for the charts
 const COLORS = {
@@ -32,6 +31,7 @@ const COLORS = {
 };
 
 const Analytics = () => {
+  const { isDemoMode } = useDemoMode();
   const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null);
   const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null);
   const [lastMonthStats, setLastMonthStats] = useState<MonthlyStats | null>(null);
@@ -42,7 +42,7 @@ const Analytics = () => {
   const [loading, setLoading] = useState(true);
   const [monthComparison, setMonthComparison] = useState<MonthComparison | null>(null);
 
-  // Load fake data for last month on mount
+  // Load fake data for last month on mount (for comparison)
   useEffect(() => {
     const fakeLastMonth = generateFakeLastMonthStats();
     setLastMonthStats(fakeLastMonth);
@@ -52,29 +52,35 @@ const Analytics = () => {
   useEffect(() => {
     const loadWeeklyStats = async () => {
       try {
+        if (isDemoMode) {
+          // Use fake data for demo mode
+          const fakeStats = generateFakeLastWeekStats();
+          setWeeklyStats(fakeStats);
+          return;
+        }
+
         const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
         const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
         
-        if (USE_BACKEND) {
-          try {
-            const stats = await apiClient.getWeeklyStats(weekStart.toISOString());
-            setWeeklyStats(stats);
-            return;
-          } catch (error) {
-            console.error('Failed to load weekly stats from API, using localStorage:', error);
-          }
+        // REAL USER MODE: Always use Supabase backend
+        try {
+          const stats = await apiClient.getWeeklyStats(weekStart.toISOString());
+          setWeeklyStats(stats);
+          return;
+        } catch (error) {
+          console.error('Failed to load weekly stats from Supabase API:', error);
+          console.error('Make sure the backend is running with main_supabase.py');
+          // Fallback to localStorage as last resort
+          const sessions = loadSessionsFromStorage();
+          const stats = calculateWeeklyStatsFromSessions(sessions, weekStart, weekEnd);
+          setWeeklyStats(stats);
         }
-        
-        // Fallback to localStorage
-        const sessions = loadSessionsFromStorage();
-        const stats = calculateWeeklyStatsFromSessions(sessions, weekStart, weekEnd);
-        setWeeklyStats(stats);
       } catch (error) {
         console.error('Failed to load weekly stats:', error);
       }
     };
     loadWeeklyStats();
-  }, []);
+  }, [isDemoMode]);
 
   // Load monthly stats
   useEffect(() => {
@@ -83,35 +89,47 @@ const Analytics = () => {
         const year = currentMonth.getFullYear();
         const month = currentMonth.getMonth() + 1;
         
-        // Check if viewing last month - use fake data
+        // Check if viewing last month - use fake data for comparison
         const lastMonth = subMonths(new Date(), 1);
         const isLastMonth = year === lastMonth.getFullYear() && month === lastMonth.getMonth() + 1;
+        
+        if (isDemoMode) {
+          // Use fake data for demo mode
+          if (isLastMonth && lastMonthStats) {
+            setMonthlyStats(lastMonthStats);
+          } else {
+            // Generate fake data for current month or other months
+            const targetDate = new Date(year, month - 1, 1);
+            const fakeStats = generateFakeMonthlyStats(targetDate);
+            setMonthlyStats(fakeStats);
+          }
+          return;
+        }
         
         if (isLastMonth && lastMonthStats) {
           setMonthlyStats(lastMonthStats);
           return;
         }
         
-        if (USE_BACKEND) {
-          try {
-            const stats = await apiClient.getMonthlyStats(year, month);
-            setMonthlyStats(stats);
-            return;
-          } catch (error) {
-            console.error('Failed to load monthly stats from API, using localStorage:', error);
-          }
+        // REAL USER MODE: Always use Supabase backend
+        try {
+          const stats = await apiClient.getMonthlyStats(year, month);
+          setMonthlyStats(stats);
+          return;
+        } catch (error) {
+          console.error('Failed to load monthly stats from Supabase API:', error);
+          console.error('Make sure the backend is running with main_supabase.py');
+          // Fallback to localStorage as last resort
+          const sessions = loadSessionsFromStorage();
+          const stats = calculateMonthlyStatsFromSessions(sessions, year, month);
+          setMonthlyStats(stats);
         }
-        
-        // Fallback to localStorage
-        const sessions = loadSessionsFromStorage();
-        const stats = calculateMonthlyStatsFromSessions(sessions, year, month);
-        setMonthlyStats(stats);
       } catch (error) {
         console.error('Failed to load monthly stats:', error);
       }
     };
     loadMonthlyStats();
-  }, [currentMonth, lastMonthStats]);
+  }, [currentMonth, lastMonthStats, isDemoMode]);
 
   // Calculate month comparison when both months are loaded
   useEffect(() => {
@@ -133,58 +151,87 @@ const Analytics = () => {
   useEffect(() => {
     const loadGeneralStats = async () => {
       try {
-        if (USE_BACKEND) {
-          try {
-            const stats = await apiClient.getAnalyticsStats();
-            setGeneralStats(stats);
-            setLoading(false);
-            return;
-          } catch (error) {
-            console.error('Failed to load general stats from API, using localStorage:', error);
-          }
+        if (isDemoMode) {
+          // Use fake data for demo mode
+          const fakeStats = generateFakeGeneralStats();
+          setGeneralStats(fakeStats);
+          setLoading(false);
+          return;
         }
-        
-        // Fallback to localStorage
-        const sessions = loadSessionsFromStorage();
-        const stats = calculateGeneralStatsFromSessions(sessions);
-        setGeneralStats(stats);
-        setLoading(false);
+
+        // REAL USER MODE: Always use Supabase backend
+        try {
+          const stats = await apiClient.getAnalyticsStats();
+          setGeneralStats(stats);
+          setLoading(false);
+          return;
+        } catch (error) {
+          console.error('Failed to load general stats from Supabase API:', error);
+          console.error('Make sure the backend is running with main_supabase.py');
+          // Fallback to localStorage as last resort
+          const sessions = loadSessionsFromStorage();
+          const stats = calculateGeneralStatsFromSessions(sessions);
+          setGeneralStats(stats);
+          setLoading(false);
+        }
       } catch (error) {
         console.error('Failed to load general stats:', error);
         setLoading(false);
       }
     };
     loadGeneralStats();
-  }, []);
+  }, [isDemoMode]);
 
   // Load daily breakdown when date is selected
   useEffect(() => {
     if (selectedDate) {
       const loadDailyBreakdown = async () => {
         try {
+          if (isDemoMode) {
+            // Generate fake daily breakdown for demo mode
+            const dateStr = format(selectedDate, 'yyyy-MM-dd');
+            const fakeSessions = generateFakeLastMonthSessions();
+            const daySessions = fakeSessions.filter(
+              s => format(new Date(s.startTime), 'yyyy-MM-dd') === dateStr
+            );
+            const breakdown = calculateDailyBreakdownFromSessions(
+              daySessions.map(s => ({
+                id: parseInt(s.id) || 0,
+                partner: s.partner,
+                start_time: s.startTime.toISOString(),
+                end_time: s.endTime?.toISOString(),
+                duration: s.duration,
+                created_at: s.startTime.toISOString(),
+                updated_at: s.endTime?.toISOString() || s.startTime.toISOString(),
+              })),
+              selectedDate
+            );
+            setDailyBreakdown(breakdown);
+            return;
+          }
+
           const dateStr = format(selectedDate, 'yyyy-MM-dd');
           
-          if (USE_BACKEND) {
-            try {
-              const breakdown = await apiClient.getDailyStats(dateStr);
-              setDailyBreakdown(breakdown);
-              return;
-            } catch (error) {
-              console.error('Failed to load daily breakdown from API, using localStorage:', error);
-            }
+          // REAL USER MODE: Always use Supabase backend
+          try {
+            const breakdown = await apiClient.getDailyStats(dateStr);
+            setDailyBreakdown(breakdown);
+            return;
+          } catch (error) {
+            console.error('Failed to load daily breakdown from Supabase API:', error);
+            console.error('Make sure the backend is running with main_supabase.py');
+            // Fallback to localStorage as last resort
+            const sessions = loadSessionsFromStorage();
+            const breakdown = calculateDailyBreakdownFromSessions(sessions, selectedDate);
+            setDailyBreakdown(breakdown);
           }
-          
-          // Fallback to localStorage
-          const sessions = loadSessionsFromStorage();
-          const breakdown = calculateDailyBreakdownFromSessions(sessions, selectedDate);
-          setDailyBreakdown(breakdown);
         } catch (error) {
           console.error('Failed to load daily breakdown:', error);
         }
       };
       loadDailyBreakdown();
     }
-  }, [selectedDate]);
+  }, [selectedDate, isDemoMode]);
 
   const formatDuration = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);

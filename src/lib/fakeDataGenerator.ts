@@ -67,17 +67,24 @@ export const generateFakeLastMonthSessions = (): DebateSession[] => {
   return sessions;
 };
 
-// Generate fake monthly stats for last month
-export const generateFakeLastMonthStats = (): MonthlyStats => {
-  const lastMonth = subMonths(new Date(), 1);
-  const year = lastMonth.getFullYear();
-  const month = lastMonth.getMonth() + 1;
-  const start = startOfMonth(lastMonth);
-  const end = endOfMonth(lastMonth);
+// Generate fake monthly stats for a specific month (defaults to last month)
+export const generateFakeMonthlyStats = (targetMonth?: Date): MonthlyStats => {
+  const monthDate = targetMonth || subMonths(new Date(), 1);
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth() + 1;
+  const start = startOfMonth(monthDate);
+  const end = endOfMonth(monthDate);
   const days = eachDayOfInterval({ start, end });
   
+  // Only include days up to today if it's the current month
+  const today = new Date();
+  const isCurrentMonth = year === today.getFullYear() && month === today.getMonth() + 1;
+  const filteredDays = isCurrentMonth 
+    ? days.filter(day => day <= today)
+    : days;
+  
   // Generate trend data
-  const trendData: TrendData[] = days.map((day, index) => {
+  const trendData: TrendData[] = filteredDays.map((day, index) => {
     const seed = index * 100;
     const dayOfWeek = day.getDay();
     const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
@@ -94,16 +101,29 @@ export const generateFakeLastMonthStats = (): MonthlyStats => {
     };
   });
   
-  // Generate calendar heatmap
+  // Generate calendar heatmap (for all days in the month, but only generate data for filtered days)
   const calendarHeatmap: CalendarHeatmapData[] = days.map((day, index) => {
-    const trend = trendData[index];
-    return {
-      date: format(day, 'yyyy-MM-dd'),
-      day: day.getDate(),
-      intensity: (trend.husband_time + trend.wife_time) / 3600,
-      husband_sessions: Math.floor(seededRandom(index * 200) * 4) + 1,
-      wife_sessions: Math.floor(seededRandom(index * 201) * 4) + 1,
-    };
+    const dayStr = format(day, 'yyyy-MM-dd');
+    const trendItem = trendData.find(t => t.date === dayStr);
+    
+    if (trendItem) {
+      return {
+        date: dayStr,
+        day: day.getDate(),
+        intensity: (trendItem.husband_time + trendItem.wife_time) / 3600,
+        husband_sessions: Math.floor(seededRandom(index * 200) * 4) + 1,
+        wife_sessions: Math.floor(seededRandom(index * 201) * 4) + 1,
+      };
+    } else {
+      // For future dates in current month or days without data
+      return {
+        date: dayStr,
+        day: day.getDate(),
+        intensity: 0,
+        husband_sessions: 0,
+        wife_sessions: 0,
+      };
+    }
   });
   
   const totalHusbandTime = trendData.reduce((acc, d) => acc + d.husband_time, 0);
@@ -141,6 +161,11 @@ export const generateFakeLastMonthStats = (): MonthlyStats => {
     peacekeeping_winner: totalWifeTime < totalHusbandTime ? 'wife' : 'husband',
     calendar_heatmap: calendarHeatmap,
   };
+};
+
+// Generate fake monthly stats for last month (backward compatibility)
+export const generateFakeLastMonthStats = (): MonthlyStats => {
+  return generateFakeMonthlyStats();
 };
 
 // Generate fake weekly stats for comparison

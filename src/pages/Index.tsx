@@ -3,6 +3,7 @@ import { AnimatePresence } from 'framer-motion';
 import { useDebateTracker } from '@/hooks/useDebateTracker';
 import { useNotifications } from '@/hooks/useNotifications';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
+import { useDemoMode } from '@/hooks/useDemoMode';
 import { Header } from '@/components/Header';
 import { DebateToggle } from '@/components/DebateToggle';
 import { StatsCard } from '@/components/StatsCard';
@@ -11,9 +12,12 @@ import { ToastContainer } from '@/components/ToastContainer';
 import { BothActiveIndicator } from '@/components/BothActiveIndicator';
 import { CalendarView } from '@/components/CalendarView';
 import { getPartnerName } from '@/lib/partnerSettings';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Info } from 'lucide-react';
 
 const Index = () => {
   const [showCalendar, setShowCalendar] = useState(false);
+  const { isDemoMode } = useDemoMode();
 
   const {
     husbandActive,
@@ -169,6 +173,25 @@ const Index = () => {
           onRequestPermission={requestPermission}
           onOpenCalendar={() => setShowCalendar(true)}
         />
+
+        {/* Demo Mode Indicator */}
+        {isDemoMode ? (
+          <Alert className="mt-4 border-indigo-200 bg-indigo-50">
+            <Info className="h-4 w-4 text-indigo-600" />
+            <AlertDescription className="text-indigo-800">
+              <strong>Demo Mode Active:</strong> You're viewing sample data. Toggle switches are disabled. 
+              Switch to real user mode to start tracking your debates and sync data across devices via Supabase.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert className="mt-4 border-emerald-200 bg-emerald-50">
+            <Info className="h-4 w-4 text-emerald-600" />
+            <AlertDescription className="text-emerald-800">
+              <strong>Real User Mode:</strong> All data is being saved to Supabase cloud database. 
+              Both partners can access the same shared data from any device. Data syncs in real-time.
+            </AlertDescription>
+          </Alert>
+        )}
 
         {/* Both Active Indicator */}
         <AnimatePresence>

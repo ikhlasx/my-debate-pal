@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ChevronLeft, 
@@ -27,6 +27,8 @@ import {
 import { DebateSession } from '@/types/debate';
 import { formatDuration } from '@/hooks/useNotifications';
 import { calculateTotalOverlapTime } from '@/lib/sessionUtils';
+import { useDemoMode } from '@/hooks/useDemoMode';
+import { generateFakeLastMonthSessions } from '@/lib/fakeDataGenerator';
 
 interface CalendarViewProps {
   sessions: DebateSession[];
@@ -44,8 +46,26 @@ interface DayAnalytics {
 }
 
 export const CalendarView = ({ sessions, onClose }: CalendarViewProps) => {
+  const { isDemoMode } = useDemoMode();
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [displaySessions, setDisplaySessions] = useState<DebateSession[]>(sessions);
+
+  // Use demo sessions when demo mode is enabled
+  useEffect(() => {
+    if (isDemoMode) {
+      const fakeSessions = generateFakeLastMonthSessions();
+      // Also generate some recent sessions for current month
+      const now = new Date();
+      const currentMonthStart = startOfMonth(now);
+      const fakeRecentSessions = fakeSessions.filter(
+        s => new Date(s.startTime) >= currentMonthStart
+      );
+      setDisplaySessions(fakeRecentSessions.length > 0 ? fakeRecentSessions : fakeSessions);
+    } else {
+      setDisplaySessions(sessions);
+    }
+  }, [isDemoMode, sessions]);
 
   // Generate calendar days
   const calendarDays = useMemo(() => {
@@ -57,7 +77,7 @@ export const CalendarView = ({ sessions, onClose }: CalendarViewProps) => {
   // Get analytics for a specific date
   const getDayAnalytics = (date: Date): DayAnalytics => {
     const dayStr = format(date, 'yyyy-MM-dd');
-    const daySessions = sessions.filter(
+    const daySessions = displaySessions.filter(
       s => format(new Date(s.startTime), 'yyyy-MM-dd') === dayStr && s.duration
     );
 
