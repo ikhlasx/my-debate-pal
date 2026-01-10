@@ -12,11 +12,20 @@ const DemoModeContext = createContext<DemoModeContextType | undefined>(undefined
 
 export const DemoModeProvider = ({ children }: { children: ReactNode }) => {
   const [isDemoMode, setIsDemoModeState] = useState<boolean>(() => {
+    // Check if we're in browser environment
+    if (typeof window === 'undefined') {
+      return false; // Default to real user mode during SSR
+    }
     const stored = localStorage.getItem(DEMO_MODE_KEY);
     return stored === 'true';
   });
 
   useEffect(() => {
+    // Only access localStorage in browser
+    if (typeof window === 'undefined') {
+      return;
+    }
+    
     localStorage.setItem(DEMO_MODE_KEY, String(isDemoMode));
     
     // When switching from demo to real mode, clear demo data
@@ -34,7 +43,8 @@ export const DemoModeProvider = ({ children }: { children: ReactNode }) => {
       const newValue = !prev;
       
       // When switching from demo to real mode, show confirmation and reset
-      if (prev && !newValue) {
+      // Only in browser environment
+      if (prev && !newValue && typeof window !== 'undefined') {
         const confirmed = window.confirm(
           'Switching to real user mode will reset all data and start fresh. Continue?'
         );
