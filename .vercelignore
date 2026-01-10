@@ -1,0 +1,37 @@
+# Vercel ignore file
+# Files/directories to exclude from Vercel deployment
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Local files
+*.db
+*.sqlite
+*.sqlite3
+
+# Environment files (use Vercel env vars instead)
+backend/.env
+.env
+.env.local
+
+# Node modules (already handled by Vercel)
+node_modules/
+
+# Build outputs (handled separately)
+dist/
+build/

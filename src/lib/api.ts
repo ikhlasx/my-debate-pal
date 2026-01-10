@@ -1,4 +1,6 @@
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+// Use relative URL for same-origin requests (Vercel), or full URL for dev
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+  (import.meta.env.PROD ? '/api' : 'http://localhost:8000');
 
 export interface SessionCreate {
   partner: 'husband' | 'wife';
@@ -256,8 +258,16 @@ export class WebSocketClient {
   private maxReconnectAttempts = 5;
   private listeners: Map<string, Set<(data: any) => void>> = new Map();
 
-  constructor(baseUrl: string = API_BASE_URL.replace('http', 'ws')) {
-    this.url = `${baseUrl}/ws`;
+  constructor(baseUrl: string = API_BASE_URL) {
+    // Handle relative URLs (for Vercel) vs absolute URLs (for local dev)
+    if (baseUrl.startsWith('/')) {
+      // Relative URL (Vercel) - use wss for production
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      this.url = `${protocol}//${window.location.host}${baseUrl}/ws`;
+    } else {
+      // Absolute URL (local dev)
+      this.url = `${baseUrl.replace('http', 'ws')}/ws`;
+    }
   }
 
   connect(): void {
