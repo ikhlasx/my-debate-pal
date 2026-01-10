@@ -116,9 +116,8 @@ export const useDebateTracker = () => {
       }
 
       // REAL USER MODE: Always use Supabase backend (shared database for both partners)
-      // Reset demo data if switching from demo mode
-      localStorage.removeItem(STORAGE_KEY + '_demo');
-
+      // Don't clear demo data - it's stored separately and won't interfere
+      
       // For real users, always use the backend API (Supabase)
       // This ensures both husband and wife see the same shared data
       try {
@@ -270,13 +269,23 @@ export const useDebateTracker = () => {
         } catch (notifError) {
           console.error('Failed to send notification:', notifError);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to save session to Supabase:', error);
-        console.error('Make sure the backend is running with main_supabase.py');
+        console.error('Error details:', {
+          message: error?.message,
+          stack: error?.stack,
+          apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+        });
+        console.error('Troubleshooting:');
+        console.error('1. Make sure the backend is running: python main_supabase.py');
+        console.error('2. Check if Supabase credentials are configured in backend/.env');
+        console.error('3. Verify API URL:', import.meta.env.VITE_API_URL || 'http://localhost:8000');
         // Still update local state for immediate feedback, but warn user
         setSessions(prev => [...prev, session]);
         setLastHusbandSession(session);
-        alert('Warning: Could not save to database. Data may not sync across devices.');
+        // Use console.warn instead of alert for less intrusive notification
+        console.warn('⚠️ Could not save to database. Data saved locally but may not sync across devices.');
+        console.warn('Check browser console for detailed error information.');
       }
       
       setHusbandActive(false);
@@ -327,13 +336,23 @@ export const useDebateTracker = () => {
         } catch (notifError) {
           console.error('Failed to send notification:', notifError);
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Failed to save session to Supabase:', error);
-        console.error('Make sure the backend is running with main_supabase.py');
+        console.error('Error details:', {
+          message: error?.message,
+          stack: error?.stack,
+          apiUrl: import.meta.env.VITE_API_URL || 'http://localhost:8000',
+        });
+        console.error('Troubleshooting:');
+        console.error('1. Make sure the backend is running: python main_supabase.py');
+        console.error('2. Check if Supabase credentials are configured in backend/.env');
+        console.error('3. Verify API URL:', import.meta.env.VITE_API_URL || 'http://localhost:8000');
         // Still update local state for immediate feedback, but warn user
         setSessions(prev => [...prev, session]);
         setLastWifeSession(session);
-        alert('Warning: Could not save to database. Data may not sync across devices.');
+        // Use console.warn instead of alert for less intrusive notification
+        console.warn('⚠️ Could not save to database. Data saved locally but may not sync across devices.');
+        console.warn('Check browser console for detailed error information.');
       }
       
       setWifeActive(false);

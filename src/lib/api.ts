@@ -131,16 +131,44 @@ class ApiClient {
       ...options.headers,
     };
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+      });
 
-    if (!response.ok) {
-      throw new Error(`API error: ${response.statusText}`);
+      if (!response.ok) {
+        // Try to get error details from response
+        let errorMessage = `API error: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorMessage += ` - ${errorData.detail}`;
+          } else if (errorData.message) {
+            errorMessage += ` - ${errorData.message}`;
+          }
+        } catch {
+          // If response is not JSON, use status text
+        }
+        
+        const error = new Error(errorMessage);
+        (error as any).status = response.status;
+        (error as any).url = url;
+        throw error;
+      }
+
+      return response.json();
+    } catch (error: any) {
+      // Enhance error with more context
+      if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        throw new Error(
+          `Network error: Cannot connect to API at ${url}. ` +
+          `Make sure the backend is running (python main_supabase.py) and ` +
+          `check VITE_API_URL environment variable.`
+        );
+      }
+      throw error;
     }
-
-    return response.json();
   }
 
   // Session endpoints

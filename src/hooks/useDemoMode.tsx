@@ -26,12 +26,11 @@ export const DemoModeProvider = ({ children }: { children: ReactNode }) => {
       return;
     }
     
+    // Save demo mode preference
     localStorage.setItem(DEMO_MODE_KEY, String(isDemoMode));
     
-    // When switching from demo to real mode, clear demo data
-    if (!isDemoMode) {
-      localStorage.removeItem('debate-sessions_demo');
-    }
+    // Don't clear any data when switching modes
+    // Demo and real data are kept separate and will be loaded as needed
   }, [isDemoMode]);
 
   const setIsDemoMode = useCallback((value: boolean) => {
@@ -42,20 +41,10 @@ export const DemoModeProvider = ({ children }: { children: ReactNode }) => {
     setIsDemoModeState(prev => {
       const newValue = !prev;
       
-      // When switching from demo to real mode, show confirmation and reset
-      // Only in browser environment
-      if (prev && !newValue && typeof window !== 'undefined') {
-        const confirmed = window.confirm(
-          'Switching to real user mode will reset all data and start fresh. Continue?'
-        );
-        if (!confirmed) {
-          return prev; // Keep demo mode on if user cancels
-        }
-        
-        // Clear all session data when switching to real mode
-        localStorage.removeItem('debate-sessions');
-        localStorage.removeItem('debate-sessions_demo');
-      }
+      // Just toggle the mode - no data reset
+      // Demo data and real data are kept separate
+      // When switching to real mode, it will load from Supabase
+      // When switching to demo mode, it will show sample data
       
       return newValue;
     });
