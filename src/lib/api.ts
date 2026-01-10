@@ -1,4 +1,6 @@
 // Use relative URL for same-origin requests (Vercel), or full URL for dev
+// In production on Vercel, use '/api' (routes to api/index.py serverless function)
+// In local dev, use 'http://localhost:8000' (routes to local FastAPI server)
 const API_BASE_URL = import.meta.env.VITE_API_URL || 
   (import.meta.env.PROD ? '/api' : 'http://localhost:8000');
 
@@ -173,7 +175,7 @@ class ApiClient {
 
   // Session endpoints
   async createSession(session: SessionCreate): Promise<SessionResponse> {
-    return this.request<SessionResponse>('/api/sessions', {
+    return this.request<SessionResponse>('/sessions', {
       method: 'POST',
       body: JSON.stringify(session),
     });
@@ -191,26 +193,26 @@ class ApiClient {
 
     const query = queryParams.toString();
     return this.request<SessionResponse[]>(
-      `/api/sessions${query ? `?${query}` : ''}`
+      `/sessions${query ? `?${query}` : ''}`
     );
   }
 
   async getSession(sessionId: number): Promise<SessionResponse> {
-    return this.request<SessionResponse>(`/api/sessions/${sessionId}`);
+    return this.request<SessionResponse>(`/sessions/${sessionId}`);
   }
 
   async updateSession(
     sessionId: number,
     updates: { end_time?: string; duration?: number }
   ): Promise<SessionResponse> {
-    return this.request<SessionResponse>(`/api/sessions/${sessionId}`, {
+    return this.request<SessionResponse>(`/sessions/${sessionId}`, {
       method: 'PUT',
       body: JSON.stringify(updates),
     });
   }
 
   async deleteSession(sessionId: number): Promise<void> {
-    await this.request<void>(`/api/sessions/${sessionId}`, {
+    await this.request<void>(`/sessions/${sessionId}`, {
       method: 'DELETE',
     });
   }
@@ -219,7 +221,7 @@ class ApiClient {
   async createNotification(
     notification: NotificationCreate
   ): Promise<any> {
-    return this.request('/api/notifications', {
+    return this.request('/notifications', {
       method: 'POST',
       body: JSON.stringify(notification),
     });
@@ -235,19 +237,19 @@ class ApiClient {
 
     const query = queryParams.toString();
     return this.request<any[]>(
-      `/api/notifications${query ? `?${query}` : ''}`
+      `/notifications${query ? `?${query}` : ''}`
     );
   }
 
   // Analytics endpoints
   async getWeeklyStats(weekStart?: string): Promise<WeeklyStats> {
     const query = weekStart ? `?week_start=${weekStart}` : '';
-    return this.request<WeeklyStats>(`/api/analytics/weekly${query}`);
+    return this.request<WeeklyStats>(`/analytics/weekly${query}`);
   }
 
   async getMonthlyStats(year: number, month: number): Promise<MonthlyStats> {
     return this.request<MonthlyStats>(
-      `/api/analytics/monthly?year=${year}&month=${month}`
+      `/analytics/monthly?year=${year}&month=${month}`
     );
   }
 
@@ -261,24 +263,26 @@ class ApiClient {
 
     const query = queryParams.toString();
     return this.request<AnalyticsStats>(
-      `/api/analytics/stats${query ? `?${query}` : ''}`
+      `/analytics/stats${query ? `?${query}` : ''}`
     );
   }
 
   async getDailyStats(date: string): Promise<DailyBreakdown> {
-    return this.request<DailyBreakdown>(`/api/analytics/daily/${date}`);
+    return this.request<DailyBreakdown>(`/analytics/daily/${date}`);
   }
 
   async getHeatmapData(startDate: string, endDate: string): Promise<HeatmapData[]> {
     return this.request<HeatmapData[]>(
-      `/api/analytics/heatmap?start_date=${startDate}&end_date=${endDate}`
+      `/analytics/heatmap?start_date=${startDate}&end_date=${endDate}`
     );
   }
 }
 
 export const apiClient = new ApiClient();
 
-// WebSocket client
+// WebSocket client - DEPRECATED: Use Supabase Realtime instead
+// Kept for backward compatibility, but will be replaced by Supabase Realtime
+// See src/lib/supabaseClient.ts for the new implementation
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private url: string;
@@ -291,51 +295,22 @@ export class WebSocketClient {
     if (baseUrl.startsWith('/')) {
       // Relative URL (Vercel) - use wss for production
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      // baseUrl is already /api, so just add /ws
       this.url = `${protocol}//${window.location.host}${baseUrl}/ws`;
     } else {
-      // Absolute URL (local dev)
+      // Absolute URL (local dev) - convert http://localhost:8000 to ws://localhost:8000
       this.url = `${baseUrl.replace('http', 'ws')}/ws`;
     }
   }
 
   connect(): void {
-    try {
-      this.ws = new WebSocket(this.url);
-
-      this.ws.onopen = () => {
-        console.log('WebSocket connected');
-        this.reconnectAttempts = 0;
-      };
-
-      this.ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          this.emit(message.type, message.data);
-        } catch (e) {
-          console.error('Failed to parse WebSocket message:', e);
-        }
-      };
-
-      this.ws.onerror = (error) => {
-        console.error('WebSocket error:', error);
-      };
-
-      this.ws.onclose = () => {
-        console.log('WebSocket disconnected');
-        this.reconnect();
-      };
-    } catch (e) {
-      console.error('Failed to connect WebSocket:', e);
-      this.reconnect();
-    }
+    // WebSocket is not supported on Vercel serverless functions
+    // This will fail silently - use Supabase Realtime instead
+    console.warn('WebSocket is not supported on Vercel. Use Supabase Realtime instead.');
   }
 
   private reconnect(): void {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
-      setTimeout(() => this.connect(), delay);
-    }
+    // No-op: WebSocket not supported
   }
 
   on(event: string, callback: (data: any) => void): void {
@@ -361,5 +336,6 @@ export class WebSocketClient {
   }
 }
 
+// Export for backward compatibility - but use supabaseRealtimeClient instead
 export const wsClient = new WebSocketClient();
 

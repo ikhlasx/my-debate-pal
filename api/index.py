@@ -73,6 +73,9 @@ except Exception as import_error:
     app = error_app
 
 # Create Mangum adapter
+# Vercel automatically routes /api/* to this function
+# The path received by Mangum will include /api, and FastAPI routes are defined with /api prefix
+# So /api/sessions request → Mangum receives /api/sessions → FastAPI route /api/sessions matches
 try:
     handler = Mangum(app, lifespan="off")
     print("[OK] Mangum handler created successfully")

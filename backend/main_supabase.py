@@ -232,7 +232,9 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 # Health check - should work even if Supabase isn't configured
+# Handle both / and /api/ for Vercel routing
 @app.get("/")
+@app.get("/api")
 async def root():
     """Health check endpoint - doesn't require Supabase connection"""
     global supabase, supabase_error

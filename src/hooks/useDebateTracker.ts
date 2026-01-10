@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Partner, DebateSession } from '@/types/debate';
 import { subDays, subHours, subMinutes } from 'date-fns';
-import { apiClient, wsClient, SessionResponse } from '@/lib/api';
+import { apiClient, SessionResponse } from '@/lib/api';
+import { supabaseRealtimeClient } from '@/lib/supabaseClient';
 import { getPartnerName } from '@/lib/partnerSettings';
 import { useDemoMode } from './useDemoMode';
 import { generateFakeLastMonthSessions } from '@/lib/fakeDataGenerator';
@@ -153,24 +154,25 @@ export const useDebateTracker = () => {
 
     loadSessions();
 
-    // Set up WebSocket listener for real-time updates (only in real user mode)
+    // Set up Supabase Realtime listener for real-time updates (only in real user mode)
     if (!isDemoMode) {
-      // Connect to WebSocket for real-time sync between devices
-      wsClient.connect();
-      const handleSessionUpdate = (data: any) => {
+      // Connect to Supabase Realtime for real-time sync between devices
+      supabaseRealtimeClient.connect();
+      const handleSessionUpdate = (payload: any) => {
+        console.log('Realtime update received, reloading sessions...', payload);
         loadSessions(); // Reload sessions when updated (sync across devices)
       };
-      wsClient.on('session_created', handleSessionUpdate);
-      wsClient.on('session_updated', handleSessionUpdate);
-      wsClient.on('session_deleted', handleSessionUpdate);
-      wsClient.on('notification', handleSessionUpdate);
+      supabaseRealtimeClient.on('session_created', handleSessionUpdate);
+      supabaseRealtimeClient.on('session_updated', handleSessionUpdate);
+      supabaseRealtimeClient.on('session_deleted', handleSessionUpdate);
+      supabaseRealtimeClient.on('notification', handleSessionUpdate);
 
       return () => {
-        wsClient.off('session_created', handleSessionUpdate);
-        wsClient.off('session_updated', handleSessionUpdate);
-        wsClient.off('session_deleted', handleSessionUpdate);
-        wsClient.off('notification', handleSessionUpdate);
-        wsClient.disconnect();
+        supabaseRealtimeClient.off('session_created', handleSessionUpdate);
+        supabaseRealtimeClient.off('session_updated', handleSessionUpdate);
+        supabaseRealtimeClient.off('session_deleted', handleSessionUpdate);
+        supabaseRealtimeClient.off('notification', handleSessionUpdate);
+        supabaseRealtimeClient.disconnect();
       };
     }
   }, [isDemoMode]);
@@ -257,7 +259,7 @@ export const useDebateTracker = () => {
         setSessions(prev => [...prev, savedSession]);
         setLastHusbandSession(savedSession);
         
-        // Send notification (will be broadcast to all connected devices via WebSocket)
+        // Send notification (will be broadcast to all connected devices via Supabase Realtime)
         try {
           await apiClient.createNotification({
             type: 'debate_end',
@@ -324,7 +326,7 @@ export const useDebateTracker = () => {
         setSessions(prev => [...prev, savedSession]);
         setLastWifeSession(savedSession);
         
-        // Send notification (will be broadcast to all connected devices via WebSocket)
+        // Send notification (will be broadcast to all connected devices via Supabase Realtime)
         try {
           await apiClient.createNotification({
             type: 'debate_end',
