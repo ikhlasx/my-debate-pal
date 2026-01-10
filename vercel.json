@@ -60,12 +60,5 @@
         }
       ]
     }
-  ],
-  "functions": {
-    "api/index.py": {
-      "runtime": "python3.10",
-      "includeFiles": "backend/**",
-      "maxDuration": 10
-    }
-  }
+  ]
 }

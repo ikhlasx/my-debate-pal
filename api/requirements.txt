@@ -1,7 +1,5 @@
 # Vercel Serverless Function Requirements
-# This file is used by Vercel to install Python dependencies
-# Include all required packages inline (Vercel doesn't support -r for parent dirs)
-
+# Python 3.10 runtime
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 pydantic==2.5.3
