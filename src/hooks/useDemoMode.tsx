@@ -1,4 +1,4 @@
-import { useState, useEffect, createContext, useContext, ReactNode, useCallback } from 'react';
+import React, { useState, useEffect, createContext, useContext, ReactNode, useCallback, useMemo } from 'react';
 
 const DEMO_MODE_KEY = 'debate-tracker-demo-mode';
 
@@ -61,8 +61,17 @@ export const DemoModeProvider = ({ children }: { children: ReactNode }) => {
     });
   }, []);
 
+  const contextValue: DemoModeContextType = useMemo(
+    () => ({
+      isDemoMode,
+      setIsDemoMode,
+      toggleDemoMode,
+    }),
+    [isDemoMode, setIsDemoMode, toggleDemoMode]
+  );
+
   return (
-    <DemoModeContext.Provider value={{ isDemoMode, setIsDemoMode, toggleDemoMode }}>
+    <DemoModeContext.Provider value={contextValue}>
       {children}
     </DemoModeContext.Provider>
   );
