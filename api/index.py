@@ -51,10 +51,10 @@ except Exception as import_error:
     error_traceback = traceback.format_exc()
     
     @error_app.get("/")
-    @error_app.get("/api/{path:path}")
-    @error_app.post("/api/{path:path}")
-    @error_app.put("/api/{path:path}")
-    @error_app.delete("/api/{path:path}")
+    @error_app.get("/{path:path}")
+    @error_app.post("/{path:path}")
+    @error_app.put("/{path:path}")
+    @error_app.delete("/{path:path}")
     async def error_handler(request: Request, path: str = ""):
         return JSONResponse(
             status_code=500,
@@ -73,11 +73,17 @@ except Exception as import_error:
     app = error_app
 
 # Create Mangum adapter
-# Vercel automatically routes /api/* to this function and PASSES the /api prefix
-# So /api/sessions request → Mangum receives /api/sessions → FastAPI route /api/sessions matches
+# Vercel automatically routes /api/* to this function
+# Based on testing, Vercel STRIPS the /api prefix when routing
+# So /api/sessions → Mangum receives /sessions → FastAPI needs route /sessions
+# But we've defined routes with /api prefix, so we need to configure Mangum
 try:
+    # Mangum by default passes the full path from the API Gateway
+    # Vercel strips /api, so we need routes without /api prefix OR configure base_path
+    # Since our routes have /api prefix, we need to tell Mangum about the base path
     handler = Mangum(app, lifespan="off")
     print("[OK] Mangum handler created successfully")
+    print("[INFO] Routes defined with /api prefix - Vercel should strip /api before passing to Mangum")
 except Exception as e:
     print(f"[CRITICAL] Failed to create Mangum handler: {e}")
     raise

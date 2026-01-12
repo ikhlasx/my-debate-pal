@@ -232,9 +232,9 @@ async def websocket_endpoint(websocket: WebSocket):
         manager.disconnect(websocket)
 
 # Health check - should work even if Supabase isn't configured
-# Vercel passes /api prefix, so /api/ becomes /api in FastAPI
+# Vercel auto-detects api/index.py and STRIPS /api prefix before passing to Mangum
+# So /api/ request → Mangum receives / → FastAPI route / matches
 @app.get("/")
-@app.get("/api")
 async def root():
     """Health check endpoint - doesn't require Supabase connection"""
     global supabase, supabase_error
@@ -275,8 +275,8 @@ async def root():
     return response
 
 # Session endpoints
-# Vercel passes /api prefix, so /api/sessions becomes /api/sessions
-@app.post("/api/sessions", response_model=SessionResponse)
+# Vercel strips /api prefix, so /api/sessions → Mangum receives /sessions → route /sessions matches
+@app.post("/sessions", response_model=SessionResponse)
 async def create_session(session: SessionCreate):
     # Prepare data for Supabase
     session_data = {
@@ -317,7 +317,7 @@ async def create_session(session: SessionCreate):
         updated_at=parse_datetime(db_session["updated_at"])
     )
 
-@app.get("/api/sessions", response_model=List[SessionResponse])
+@app.get("/sessions", response_model=List[SessionResponse])
 async def get_sessions(
     partner: Optional[str] = None,
     start_date: Optional[str] = None,
@@ -353,7 +353,7 @@ async def get_sessions(
     
     return sessions
 
-@app.get("/api/sessions/{session_id}", response_model=SessionResponse)
+@app.get("/sessions/{session_id}", response_model=SessionResponse)
 async def get_session(session_id: int):
     result = get_supabase().table("debate_sessions").select("*").eq("id", session_id).eq("partner_id", DEMO_USER_ID).execute()
     
@@ -371,7 +371,7 @@ async def get_session(session_id: int):
         updated_at=parse_datetime(row["updated_at"])
     )
 
-@app.put("/api/sessions/{session_id}", response_model=SessionResponse)
+@app.put("/sessions/{session_id}", response_model=SessionResponse)
 async def update_session(session_id: int, session_update: SessionUpdate):
     # Check if session exists
     check = get_supabase().table("debate_sessions").select("id").eq("id", session_id).eq("partner_id", DEMO_USER_ID).execute()
@@ -413,7 +413,7 @@ async def update_session(session_id: int, session_update: SessionUpdate):
         updated_at=parse_datetime(row["updated_at"])
     )
 
-@app.delete("/api/sessions/{session_id}")
+@app.delete("/sessions/{session_id}")
 async def delete_session(session_id: int):
     # Check if session exists
     check = get_supabase().table("debate_sessions").select("id").eq("id", session_id).eq("partner_id", DEMO_USER_ID).execute()
@@ -430,7 +430,7 @@ async def delete_session(session_id: int):
     return {"message": "Session deleted"}
 
 # Notification endpoints
-@app.post("/api/notifications", response_model=NotificationResponse)
+@app.post("/notifications", response_model=NotificationResponse)
 async def create_notification(notification: NotificationCreate):
     notification_data = {
         "partner_id": DEMO_USER_ID,
@@ -472,7 +472,7 @@ async def create_notification(notification: NotificationCreate):
         read=db_notification.get("read", 0)
     )
 
-@app.get("/api/notifications", response_model=List[NotificationResponse])
+@app.get("/notifications", response_model=List[NotificationResponse])
 async def get_notifications(
     partner: Optional[str] = None,
     limit: int = 50
@@ -501,7 +501,7 @@ async def get_notifications(
     return notifications
 
 # Analytics endpoints
-@app.get("/api/analytics/weekly", response_model=WeeklyStats)
+@app.get("/analytics/weekly", response_model=WeeklyStats)
 async def get_weekly_stats(week_start: Optional[str] = None):
     if week_start:
         start_date = parse_iso_date(week_start).date()
@@ -513,11 +513,11 @@ async def get_weekly_stats(week_start: Optional[str] = None):
     
     return calculate_analytics.get_weekly_stats(get_supabase(), DEMO_USER_ID, start_date, end_date)
 
-@app.get("/api/analytics/monthly", response_model=MonthlyStats)
+@app.get("/analytics/monthly", response_model=MonthlyStats)
 async def get_monthly_stats(year: int, month: int):
     return calculate_analytics.get_monthly_stats(get_supabase(), DEMO_USER_ID, year, month)
 
-@app.get("/api/analytics/stats", response_model=AnalyticsStats)
+@app.get("/analytics/stats", response_model=AnalyticsStats)
 async def get_analytics_stats(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None
@@ -527,12 +527,12 @@ async def get_analytics_stats(
     
     return calculate_analytics.get_general_stats(get_supabase(), DEMO_USER_ID, start, end)
 
-@app.get("/api/analytics/daily/{date_str}")
+@app.get("/analytics/daily/{date_str}")
 async def get_daily_stats(date_str: str):
     target_date = parse_iso_date(date_str).date()
     return calculate_analytics.get_daily_stats(get_supabase(), DEMO_USER_ID, target_date)
 
-@app.get("/api/analytics/heatmap")
+@app.get("/analytics/heatmap")
 async def get_heatmap_data(start_date: str, end_date: str):
     start = parse_iso_date(start_date).date()
     end = parse_iso_date(end_date).date()
