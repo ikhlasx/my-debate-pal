@@ -265,7 +265,14 @@ async def root():
         "demo_user_id": DEMO_USER_ID,
         "database": {
             "status": db_status,
-        }
+        },
+        "routes": {
+            "root": "/",
+            "sessions": "/sessions",
+            "notifications": "/notifications",
+            "analytics": "/analytics/*"
+        },
+        "note": "Routes are defined without /api prefix because Vercel strips it"
     }
     
     if db_error:
