@@ -73,17 +73,11 @@ except Exception as import_error:
     app = error_app
 
 # Create Mangum adapter
-# Vercel automatically routes /api/* to this function
-# Based on testing, Vercel STRIPS the /api prefix when routing
-# So /api/sessions → Mangum receives /sessions → FastAPI needs route /sessions
-# But we've defined routes with /api prefix, so we need to configure Mangum
+# Vercel automatically routes /api/* to this function and STRIPS the /api prefix
+# So /api/sessions request → Mangum receives /sessions → FastAPI route /sessions matches
 try:
-    # Mangum by default passes the full path from the API Gateway
-    # Vercel strips /api, so we need routes without /api prefix OR configure base_path
-    # Since our routes have /api prefix, we need to tell Mangum about the base path
     handler = Mangum(app, lifespan="off")
     print("[OK] Mangum handler created successfully")
-    print("[INFO] Routes defined with /api prefix - Vercel should strip /api before passing to Mangum")
 except Exception as e:
     print(f"[CRITICAL] Failed to create Mangum handler: {e}")
     raise
