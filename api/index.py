@@ -51,10 +51,10 @@ except Exception as import_error:
     error_traceback = traceback.format_exc()
     
     @error_app.get("/")
-    @error_app.get("/api/{path:path}")
-    @error_app.post("/api/{path:path}")
-    @error_app.put("/api/{path:path}")
-    @error_app.delete("/api/{path:path}")
+    @error_app.get("/{path:path}")
+    @error_app.post("/{path:path}")
+    @error_app.put("/{path:path}")
+    @error_app.delete("/{path:path}")
     async def error_handler(request: Request, path: str = ""):
         return JSONResponse(
             status_code=500,
@@ -73,9 +73,8 @@ except Exception as import_error:
     app = error_app
 
 # Create Mangum adapter
-# Vercel automatically routes /api/* to this function
-# The path received by Mangum will include /api, and FastAPI routes are defined with /api prefix
-# So /api/sessions request → Mangum receives /api/sessions → FastAPI route /api/sessions matches
+# Vercel automatically routes /api/* to this function and STRIPS the /api prefix
+# So /api/sessions request → Mangum receives /sessions → FastAPI route /sessions matches
 try:
     handler = Mangum(app, lifespan="off")
     print("[OK] Mangum handler created successfully")
