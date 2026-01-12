@@ -2,16 +2,18 @@ import { createClient } from '@supabase/supabase-js';
 
 // Get Supabase credentials from environment variables
 // These should be set in Vercel Environment Variables
+// IMPORTANT: Must use VITE_ prefix - Vite only exposes env vars with VITE_ prefix to client code
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseAnonKey) {
   console.warn(
-    'Supabase credentials not found. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your environment variables.'
+    'Supabase credentials not found. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your Vercel Environment Variables.'
   );
 }
 
 // Create Supabase client
+// Note: If supabaseUrl is empty, createClient will throw "supabaseUrl is required" error
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   realtime: {
     params: {
