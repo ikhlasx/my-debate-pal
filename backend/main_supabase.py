@@ -158,9 +158,13 @@ def get_supabase():
 app = FastAPI(title="Debate Tracker API (Supabase)", version="2.0.0")
 
 # CORS middleware
+# Configure CORS to allow the Vercel frontend and local development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Production Vercel deployment
+        "https://my-debate-pal.vercel.app",
+        # Local development
         "http://localhost:8080",
         "http://localhost:8081",
         "http://localhost:5173",
@@ -169,10 +173,11 @@ app.add_middleware(
         "http://192.168.56.1:8081",
         "http://192.168.1.28:8081",
         "http://172.29.128.1:8081",
-        "https://*.vercel.app",  # Allow all Vercel deployments
-        "https://*.vercel.sh",   # Allow Vercel preview deployments
-        os.getenv("FRONTEND_URL", "*"),  # Allow custom frontend URL
-        "*"  # Allow all for demo (production should restrict this)
+        # Vercel preview deployments (wildcard patterns)
+        "https://*.vercel.app",
+        "https://*.vercel.sh",
+        # Custom frontend URL from environment variable
+        os.getenv("FRONTEND_URL", ""),
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],

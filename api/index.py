@@ -38,10 +38,17 @@ except Exception as import_error:
     
     error_app = FastAPI(title="Debate Tracker API - Error")
     
-    # Add CORS
+    # Add CORS - allow Vercel frontend
     error_app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
+        allow_origins=[
+            "https://my-debate-pal.vercel.app",
+            "https://*.vercel.app",
+            "https://*.vercel.sh",
+            "http://localhost:5173",
+            "http://localhost:8080",
+            "http://localhost:8081",
+        ],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
