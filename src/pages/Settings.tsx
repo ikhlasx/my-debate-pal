@@ -8,10 +8,12 @@ import { getPartnerSettings, savePartnerSettings, PartnerSettings } from '@/lib/
 import { useToast } from '@/hooks/use-toast';
 import { PushNotificationPanel } from '@/components/PushNotificationPanel';
 import { BackButton } from '@/components/BackButton';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Settings = () => {
   const [settings, setSettings] = useState<PartnerSettings>(getPartnerSettings());
   const { toast } = useToast();
+  const { signOut } = useAuth();
 
   const handleSave = () => {
     savePartnerSettings(settings);
@@ -81,13 +83,72 @@ const Settings = () => {
               </p>
             </div>
 
-            <Button 
-              onClick={handleSave} 
+            <Button
+              onClick={handleSave}
               className="w-full bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 rounded-lg"
             >
               <Save className="w-4 h-4 mr-2" />
               Save Settings
             </Button>
+          </CardContent>
+        </Card>
+
+        {/* Account Management */}
+        <Card>
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-gradient-to-br from-red-500 to-orange-600 rounded-xl">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <CardTitle className="text-lg">Account Management</CardTitle>
+                <CardDescription>
+                  Manage your account and local data
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2">
+              <Button
+                onClick={() => {
+                  if (confirm('Are you sure you want to clear all local data? This cannot be undone.')) {
+                    localStorage.clear();
+                    toast({
+                      title: 'Data cleared',
+                      description: 'All local data has been cleared.',
+                    });
+                    window.location.reload();
+                  }
+                }}
+                variant="outline"
+                className="w-full rounded-lg border-orange-200 hover:bg-orange-50 dark:border-orange-800 dark:hover:bg-orange-950"
+              >
+                Clear Local Data
+              </Button>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                This will clear all cached data from your browser. Your cloud data will remain safe.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-2">
+              <Button
+                onClick={async () => {
+                  await signOut();
+                  toast({
+                    title: 'Logged out',
+                    description: 'You have been logged out successfully.',
+                  });
+                }}
+                variant="destructive"
+                className="w-full rounded-lg bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700"
+              >
+                Logout
+              </Button>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Sign out from your account. You'll need to log in again to access your data.
+              </p>
+            </div>
           </CardContent>
         </Card>
       </div>

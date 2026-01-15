@@ -6,8 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Link } from 'react-router-dom';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useDemoMode } from '@/hooks/useDemoMode';
-import { useAuth } from '@/contexts/AuthContext';
-import { toast } from 'sonner';
 import {
   Tooltip,
   TooltipContent,
@@ -25,20 +23,6 @@ interface HeaderProps {
 export const Header = ({ permission, onRequestPermission, onOpenCalendar }: HeaderProps) => {
   const { isSubscribed, isSupported, subscribe, isLoading } = usePushNotifications();
   const { isDemoMode, toggleDemoMode } = useDemoMode();
-  const { user, signOut } = useAuth();
-
-  const handleLogout = async () => {
-    await signOut();
-    toast.success('Logged out successfully');
-  };
-
-  const handleClearData = () => {
-    if (confirm('Are you sure you want to clear all local data? This cannot be undone.')) {
-      localStorage.clear();
-      toast.success('Local data cleared');
-      window.location.reload();
-    }
-  };
 
   const handleNotificationClick = async () => {
     if (isSubscribed) {
@@ -178,27 +162,6 @@ export const Header = ({ permission, onRequestPermission, onOpenCalendar }: Head
             <Settings className="w-5 h-5" />
           </Button>
         </Link>
-        {user && (
-          <>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearData}
-              className="rounded-xl text-xs"
-              title="Clear local data"
-            >
-              Clear Data
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleLogout}
-              className="rounded-xl"
-            >
-              Logout
-            </Button>
-          </>
-        )}
       </div>
     </motion.header>
   );
