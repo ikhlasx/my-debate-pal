@@ -79,17 +79,26 @@ except Exception as import_error:
     
     app = error_app
 
-# Set root path for Vercel
-# Because Vercel rewrites /api/* to this function but keeps the /api prefix in the path,
-# we need to tell FastAPI that it is mounted under /api so it can route correctly.
-if app:
-    app.root_path = "/api"
-
-# Create Mangum adapter
-# Vercel automatically routes /api/* to this function and STRIPS the /api prefix
-# So /api/sessions request → Mangum receives /sessions → FastAPI route /sessions matches
+# Set up explicit mounting for Vercel
+# This is the robust way to handle the /api prefix
+# The request comes in as /api/sessions
+# We mount the backend app at /api, so it handles the remainder (/sessions)
 try:
-    handler = Mangum(app, lifespan="off")
+    if app != error_app:
+        # Create a wrapper app
+        root_app = FastAPI()
+        
+        # Mount the backend app under /api
+        root_app.mount("/api", app)
+        
+        # Use the wrapper app for Mangum
+        handler = Mangum(root_app, lifespan="off")
+    else:
+        # If import failed, just use the error app directly (it accepts all paths)
+        handler = Mangum(app, lifespan="off")
+        
+    print("[OK] Mangum handler created successfully with /api mount")
+except Exception as e:
     print("[OK] Mangum handler created successfully")
 except Exception as e:
     print(f"[CRITICAL] Failed to create Mangum handler: {e}")
