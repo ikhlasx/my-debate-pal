@@ -15,7 +15,9 @@ from supabase import create_client, Client
 # Load environment variables from .env file (only for local dev, Vercel uses env vars)
 # Don't fail if .env doesn't exist (it won't in production)
 try:
-    load_dotenv()
+    # Explicitly load from backend directory
+    env_path = os.path.join(os.path.dirname(__file__), '.env')
+    load_dotenv(env_path)
 except Exception:
     pass  # .env file not required in production
 
