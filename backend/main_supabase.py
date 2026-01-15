@@ -2,9 +2,10 @@
 FastAPI Main Application - Supabase Version
 Uses Supabase as the centralized database with a demo user
 """
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
+
 from datetime import datetime, date, timedelta
 import re
 import os
@@ -20,6 +21,8 @@ try:
     load_dotenv(env_path)
 except Exception:
     pass  # .env file not required in production
+    
+from auth_deps import get_token_header
 
 from schemas import (
     SessionCreate, SessionResponse, SessionUpdate,
@@ -51,7 +54,33 @@ except ImportError as e:
             raise HTTPException(status_code=500, detail="Analytics module not available")
 
 # Demo user ID - single user for the application
+# Demo user ID - fallback (will be replaced by real auth)
 DEMO_USER_ID = "demo-user-12345"
+
+# Auth Dependency
+async def verify_user(token: str = Depends(get_token_header)) -> str:
+    """
+    Verify the JWT token with Supabase and return the user ID.
+    """
+    try:
+        # Get the Supabase client
+        client = get_supabase()
+        
+        # Verify user
+        user_response = client.auth.get_user(token)
+        
+        if not user_response or not user_response.user:
+           raise HTTPException(status_code=401, detail="Invalid token")
+           
+        return user_response.user.id
+        
+    except Exception as e:
+        # Fallback for demo/local dev without full auth flow if needed, 
+        # BUT for "Real User" request, we should enforce auth.
+        # For now, if verification fails, we raise 401.
+        print(f"Auth verification failed: {e}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
+
 
 # Initialize Supabase client
 def get_supabase_client() -> Client:
@@ -291,10 +320,10 @@ async def root():
 # Session endpoints
 # Vercel strips /api prefix, so /api/sessions → Mangum receives /sessions → route /sessions matches
 @app.post("/sessions", response_model=SessionResponse)
-async def create_session(session: SessionCreate):
+async def create_session(session: SessionCreate, user_id: str = Depends(verify_user)):
     # Prepare data for Supabase
     session_data = {
-        "partner_id": DEMO_USER_ID,
+        "partner_id": user_id,
         "partner": session.partner,
         "start_time": session.start_time.isoformat() if isinstance(session.start_time, datetime) else session.start_time,
         "end_time": session.end_time.isoformat() if session.end_time and isinstance(session.end_time, datetime) else session.end_time,
@@ -335,9 +364,10 @@ async def create_session(session: SessionCreate):
 async def get_sessions(
     partner: Optional[str] = None,
     start_date: Optional[str] = None,
-    end_date: Optional[str] = None
+    end_date: Optional[str] = None,
+    user_id: str = Depends(verify_user)
 ):
-    query = get_supabase().table("debate_sessions").select("*").eq("partner_id", DEMO_USER_ID)
+    query = get_supabase().table("debate_sessions").select("*").eq("partner_id", user_id)
     
     if partner:
         query = query.eq("partner", partner)
@@ -368,8 +398,8 @@ async def get_sessions(
     return sessions
 
 @app.get("/sessions/{session_id}", response_model=SessionResponse)
-async def get_session(session_id: int):
-    result = get_supabase().table("debate_sessions").select("*").eq("id", session_id).eq("partner_id", DEMO_USER_ID).execute()
+async def get_session(session_id: int, user_id: str = Depends(verify_user)):
+    result = get_supabase().table("debate_sessions").select("*").eq("id", session_id).eq("partner_id", user_id).execute()
     
     if not result.data:
         raise HTTPException(status_code=404, detail="Session not found")
@@ -386,9 +416,9 @@ async def get_session(session_id: int):
     )
 
 @app.put("/sessions/{session_id}", response_model=SessionResponse)
-async def update_session(session_id: int, session_update: SessionUpdate):
+async def update_session(session_id: int, session_update: SessionUpdate, user_id: str = Depends(verify_user)):
     # Check if session exists
-    check = get_supabase().table("debate_sessions").select("id").eq("id", session_id).eq("partner_id", DEMO_USER_ID).execute()
+    check = get_supabase().table("debate_sessions").select("id").eq("id", session_id).eq("partner_id", user_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Session not found")
     
@@ -401,10 +431,10 @@ async def update_session(session_id: int, session_update: SessionUpdate):
     
     if not update_data:
         # Return existing session
-        result = get_supabase().table("debate_sessions").select("*").eq("id", session_id).eq("partner_id", DEMO_USER_ID).execute()
+        result = get_supabase().table("debate_sessions").select("*").eq("id", session_id).eq("partner_id", user_id).execute()
         row = result.data[0]
     else:
-        result = get_supabase().table("debate_sessions").update(update_data).eq("id", session_id).eq("partner_id", DEMO_USER_ID).execute()
+        result = get_supabase().table("debate_sessions").update(update_data).eq("id", session_id).eq("partner_id", user_id).execute()
         row = result.data[0]
     
     # Broadcast update
@@ -428,13 +458,13 @@ async def update_session(session_id: int, session_update: SessionUpdate):
     )
 
 @app.delete("/sessions/{session_id}")
-async def delete_session(session_id: int):
+async def delete_session(session_id: int, user_id: str = Depends(verify_user)):
     # Check if session exists
-    check = get_supabase().table("debate_sessions").select("id").eq("id", session_id).eq("partner_id", DEMO_USER_ID).execute()
+    check = get_supabase().table("debate_sessions").select("id").eq("id", session_id).eq("partner_id", user_id).execute()
     if not check.data:
         raise HTTPException(status_code=404, detail="Session not found")
     
-    get_supabase().table("debate_sessions").delete().eq("id", session_id).eq("partner_id", DEMO_USER_ID).execute()
+    get_supabase().table("debate_sessions").delete().eq("id", session_id).eq("partner_id", user_id).execute()
     
     await manager.broadcast({
         "type": "session_deleted",
@@ -445,9 +475,9 @@ async def delete_session(session_id: int):
 
 # Notification endpoints
 @app.post("/notifications", response_model=NotificationResponse)
-async def create_notification(notification: NotificationCreate):
+async def create_notification(notification: NotificationCreate, user_id: str = Depends(verify_user)):
     notification_data = {
-        "partner_id": DEMO_USER_ID,
+        "partner_id": user_id,
         "type": notification.type,
         "title": notification.title,
         "message": notification.message,
@@ -489,9 +519,10 @@ async def create_notification(notification: NotificationCreate):
 @app.get("/notifications", response_model=List[NotificationResponse])
 async def get_notifications(
     partner: Optional[str] = None,
-    limit: int = 50
+    limit: int = 50,
+    user_id: str = Depends(verify_user)
 ):
-    query = get_supabase().table("notifications").select("*").eq("partner_id", DEMO_USER_ID)
+    query = get_supabase().table("notifications").select("*").eq("partner_id", user_id)
     
     if partner:
         query = query.eq("partner", partner)
@@ -516,7 +547,7 @@ async def get_notifications(
 
 # Analytics endpoints
 @app.get("/analytics/weekly", response_model=WeeklyStats)
-async def get_weekly_stats(week_start: Optional[str] = None):
+async def get_weekly_stats(week_start: Optional[str] = None, user_id: str = Depends(verify_user)):
     if week_start:
         start_date = parse_iso_date(week_start).date()
     else:
@@ -525,32 +556,33 @@ async def get_weekly_stats(week_start: Optional[str] = None):
     
     end_date = start_date + timedelta(days=6)
     
-    return calculate_analytics.get_weekly_stats(get_supabase(), DEMO_USER_ID, start_date, end_date)
+    return calculate_analytics.get_weekly_stats(get_supabase(), user_id, start_date, end_date)
 
 @app.get("/analytics/monthly", response_model=MonthlyStats)
-async def get_monthly_stats(year: int, month: int):
-    return calculate_analytics.get_monthly_stats(get_supabase(), DEMO_USER_ID, year, month)
+async def get_monthly_stats(year: int, month: int, user_id: str = Depends(verify_user)):
+    return calculate_analytics.get_monthly_stats(get_supabase(), user_id, year, month)
 
 @app.get("/analytics/stats", response_model=AnalyticsStats)
 async def get_analytics_stats(
     start_date: Optional[str] = None,
-    end_date: Optional[str] = None
+    end_date: Optional[str] = None,
+    user_id: str = Depends(verify_user)
 ):
     start = parse_iso_date(start_date).date() if start_date else None
     end = parse_iso_date(end_date).date() if end_date else None
     
-    return calculate_analytics.get_general_stats(get_supabase(), DEMO_USER_ID, start, end)
+    return calculate_analytics.get_general_stats(get_supabase(), user_id, start, end)
 
 @app.get("/analytics/daily/{date_str}")
-async def get_daily_stats(date_str: str):
+async def get_daily_stats(date_str: str, user_id: str = Depends(verify_user)):
     target_date = parse_iso_date(date_str).date()
-    return calculate_analytics.get_daily_stats(get_supabase(), DEMO_USER_ID, target_date)
+    return calculate_analytics.get_daily_stats(get_supabase(), user_id, target_date)
 
 @app.get("/analytics/heatmap")
-async def get_heatmap_data(start_date: str, end_date: str):
+async def get_heatmap_data(start_date: str, end_date: str, user_id: str = Depends(verify_user)):
     start = parse_iso_date(start_date).date()
     end = parse_iso_date(end_date).date()
-    return calculate_analytics.get_heatmap_data(get_supabase(), DEMO_USER_ID, start, end)
+    return calculate_analytics.get_heatmap_data(get_supabase(), user_id, start, end)
 
 if __name__ == "__main__":
     import uvicorn

@@ -88,7 +88,7 @@ const Index = () => {
   useEffect(() => {
     if (husbandActive) {
       checkMilestones('husband', husbandTime);
-      
+
       // Send push for milestones
       const minutes = Math.floor(husbandTime / 60);
       if ([5, 15, 30].includes(minutes) && husbandTime % 60 === 0) {
@@ -106,7 +106,7 @@ const Index = () => {
   useEffect(() => {
     if (wifeActive) {
       checkMilestones('wife', wifeTime);
-      
+
       // Send push for milestones
       const minutes = Math.floor(wifeTime / 60);
       if ([5, 15, 30].includes(minutes) && wifeTime % 60 === 0) {
@@ -122,7 +122,7 @@ const Index = () => {
   }, [wifeActive, wifeTime, checkMilestones, sendPushIfBackground]);
 
   const handleHusbandToggle = async () => {
-    const result = toggleHusband();
+    const result = await toggleHusband();
     if (result.action === 'start') {
       notifyDebateStart('husband');
       await sendPushIfBackground(
@@ -143,7 +143,7 @@ const Index = () => {
   };
 
   const handleWifeToggle = async () => {
-    const result = toggleWife();
+    const result = await toggleWife();
     if (result.action === 'start') {
       notifyDebateStart('wife');
       await sendPushIfBackground(
@@ -168,30 +168,13 @@ const Index = () => {
   return (
     <div className="min-h-screen px-4 pb-8">
       <div className="max-w-2xl mx-auto">
-        <Header 
-          permission={permission} 
+        <Header
+          permission={permission}
           onRequestPermission={requestPermission}
           onOpenCalendar={() => setShowCalendar(true)}
         />
 
-        {/* Demo Mode Indicator */}
-        {isDemoMode ? (
-          <Alert className="mt-4 border-indigo-200 bg-indigo-50">
-            <Info className="h-4 w-4 text-indigo-600" />
-            <AlertDescription className="text-indigo-800">
-              <strong>Demo Mode Active:</strong> You're viewing sample data. Toggle switches are disabled. 
-              Switch to real user mode to start tracking your debates and sync data across devices via Supabase.
-            </AlertDescription>
-          </Alert>
-        ) : (
-          <Alert className="mt-4 border-emerald-200 bg-emerald-50">
-            <Info className="h-4 w-4 text-emerald-600" />
-            <AlertDescription className="text-emerald-800">
-              <strong>Real User Mode:</strong> All data is being saved to Supabase cloud database. 
-              Both partners can access the same shared data from any device. Data syncs in real-time.
-            </AlertDescription>
-          </Alert>
-        )}
+
 
         {/* Both Active Indicator */}
         <AnimatePresence>
@@ -228,9 +211,9 @@ const Index = () => {
         {/* Calendar Modal */}
         <AnimatePresence>
           {showCalendar && (
-            <CalendarView 
-              sessions={sessions} 
-              onClose={() => setShowCalendar(false)} 
+            <CalendarView
+              sessions={sessions}
+              onClose={() => setShowCalendar(false)}
             />
           )}
         </AnimatePresence>

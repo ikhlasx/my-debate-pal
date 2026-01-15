@@ -1,8 +1,10 @@
 // Use relative URL for same-origin requests (Vercel), or full URL for dev
 // In production on Vercel, use '/api' (routes to api/index.py serverless function)
 // In local dev, use 'http://localhost:8000' (routes to local FastAPI server)
-const API_BASE_URL = import.meta.env.VITE_API_URL || 
+const API_BASE_URL = import.meta.env.VITE_API_URL ||
   (import.meta.env.PROD ? '/api' : 'http://localhost:8000');
+
+import { supabase } from '@/contexts/AuthContext';
 
 export interface SessionCreate {
   partner: 'husband' | 'wife';
@@ -133,6 +135,12 @@ class ApiClient {
       ...options.headers,
     };
 
+    // Add Authorization header if session exists
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      (headers as any)['Authorization'] = `Bearer ${session.access_token}`;
+    }
+
     try {
       const response = await fetch(url, {
         ...options,
@@ -152,7 +160,7 @@ class ApiClient {
         } catch {
           // If response is not JSON, use status text
         }
-        
+
         const error = new Error(errorMessage);
         (error as any).status = response.status;
         (error as any).url = url;

@@ -30,7 +30,7 @@ export const DebateToggle = ({
     return `${Math.floor(seconds / 86400)}d ago`;
   };
 
-  const showLastSession = lastSession?.endTime && 
+  const showLastSession = lastSession?.endTime &&
     (Date.now() - new Date(lastSession.endTime).getTime()) < 20000;
 
   return (
@@ -43,7 +43,7 @@ export const DebateToggle = ({
       {/* Last Session Indicator */}
       <motion.div
         initial={{ opacity: 0, height: 0 }}
-        animate={{ 
+        animate={{
           opacity: showLastSession ? 1 : 0,
           height: showLastSession ? 'auto' : 0
         }}
@@ -126,13 +126,7 @@ export const DebateToggle = ({
           {getPartnerName(partner)}
         </span>
 
-        {/* Status indicator */}
-        <div className={`
-          relative z-10 text-xs font-medium uppercase tracking-wider
-          ${isActive ? 'opacity-90' : 'opacity-50'}
-        `}>
-          {isActive ? 'Debating' : 'Tap to start'}
-        </div>
+
       </motion.button>
 
       {/* Timer Display */}
