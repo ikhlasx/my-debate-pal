@@ -6,6 +6,8 @@ import { Label } from '@/components/ui/label';
 import { Link } from 'react-router-dom';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useDemoMode } from '@/hooks/useDemoMode';
+import { useAuth } from '@/contexts/AuthContext';
+import { toast } from 'sonner';
 import {
   Tooltip,
   TooltipContent,
@@ -23,17 +25,31 @@ interface HeaderProps {
 export const Header = ({ permission, onRequestPermission, onOpenCalendar }: HeaderProps) => {
   const { isSubscribed, isSupported, subscribe, isLoading } = usePushNotifications();
   const { isDemoMode, toggleDemoMode } = useDemoMode();
+  const { user, signOut } = useAuth();
+
+  const handleLogout = async () => {
+    await signOut();
+    toast.success('Logged out successfully');
+  };
+
+  const handleClearData = () => {
+    if (confirm('Are you sure you want to clear all local data? This cannot be undone.')) {
+      localStorage.clear();
+      toast.success('Local data cleared');
+      window.location.reload();
+    }
+  };
 
   const handleNotificationClick = async () => {
     if (isSubscribed) {
       // Already subscribed, go to settings
       return;
     }
-    
+
     if (permission !== 'granted') {
       onRequestPermission();
     }
-    
+
     if (isSupported && !isSubscribed) {
       await subscribe();
     }
@@ -79,8 +95,8 @@ export const Header = ({ permission, onRequestPermission, onOpenCalendar }: Head
                   id="demo-mode"
                   className="data-[state=checked]:bg-indigo-600"
                 />
-                <Label 
-                  htmlFor="demo-mode" 
+                <Label
+                  htmlFor="demo-mode"
                   className={`text-xs font-medium cursor-pointer ${isDemoMode ? 'text-indigo-600' : 'text-muted-foreground'}`}
                 >
                   <span className="hidden sm:inline">Demo</span>
@@ -88,8 +104,8 @@ export const Header = ({ permission, onRequestPermission, onOpenCalendar }: Head
               </div>
             </TooltipTrigger>
             <TooltipContent>
-              {isDemoMode 
-                ? 'Demo mode: Showing sample data. Click to switch to real user mode.' 
+              {isDemoMode
+                ? 'Demo mode: Showing sample data. Click to switch to real user mode.'
                 : 'Enable demo mode to see sample analytics and calendar data'}
             </TooltipContent>
           </Tooltip>
@@ -127,26 +143,26 @@ export const Header = ({ permission, onRequestPermission, onOpenCalendar }: Head
               )}
             </TooltipTrigger>
             <TooltipContent>
-              {isSubscribed 
-                ? 'Push notifications are enabled. Click to manage.' 
+              {isSubscribed
+                ? 'Push notifications are enabled. Click to manage.'
                 : 'Enable push notifications to get alerts'}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
 
         <Link to="/analytics">
-          <Button 
-            variant="outline" 
-            size="icon" 
+          <Button
+            variant="outline"
+            size="icon"
             className="rounded-xl"
             title="Analytics Dashboard"
           >
             <BarChart3 className="w-5 h-5" />
           </Button>
         </Link>
-        <Button 
-          variant="outline" 
-          size="icon" 
+        <Button
+          variant="outline"
+          size="icon"
           className="rounded-xl"
           onClick={onOpenCalendar}
         >
@@ -162,6 +178,27 @@ export const Header = ({ permission, onRequestPermission, onOpenCalendar }: Head
             <Settings className="w-5 h-5" />
           </Button>
         </Link>
+        {user && (
+          <>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleClearData}
+              className="rounded-xl text-xs"
+              title="Clear local data"
+            >
+              Clear Data
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="rounded-xl"
+            >
+              Logout
+            </Button>
+          </>
+        )}
       </div>
     </motion.header>
   );
