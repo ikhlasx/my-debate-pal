@@ -79,6 +79,12 @@ except Exception as import_error:
     
     app = error_app
 
+# Set root path for Vercel
+# Because Vercel rewrites /api/* to this function but keeps the /api prefix in the path,
+# we need to tell FastAPI that it is mounted under /api so it can route correctly.
+if app:
+    app.root_path = "/api"
+
 # Create Mangum adapter
 # Vercel automatically routes /api/* to this function and STRIPS the /api prefix
 # So /api/sessions request → Mangum receives /sessions → FastAPI route /sessions matches
