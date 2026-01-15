@@ -195,35 +195,28 @@ def get_supabase():
 app = FastAPI(title="Debate Tracker API (Supabase)", version="2.0.0")
 
 # CORS middleware
+# CORS middleware
 # Configure CORS to allow the Vercel frontend and local development
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        # Production Vercel deployment
         "https://my-debate-pal.vercel.app",
         "https://my-debate-pal.onrender.com",
-        "https://debate-pal-backend.onrender.com", 
-        # Local development
-        "http://localhost:8080",
-        "http://localhost:8081",
-        "http://localhost:5173",
-        "http://127.0.0.1:8080",
-        "http://127.0.0.1:8081",
-        "http://192.168.56.1:8081",
-        "http://192.168.1.28:8081",
-        "http://172.29.128.1:8081",
-        # Vercel preview deployments (wildcard patterns)
-        "https://*.vercel.app",
-        "https://*.vercel.sh",
-        # Custom frontend URL from environment variable
-        os.getenv("FRONTEND_URL", ""),
-        "*", # Allow all for debugging in this specific scenario if other settings fail
     ],
+    allow_origin_regex="https://.*\.vercel\.app", # Allow all Vercel subdomains
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+    allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["*"],
 )
+
+@app.get("/")
+async def health_check():
+    return {
+        "status": "online",
+        "service": "debate-pal-backend", 
+        "time": datetime.now().isoformat()
+    }
 
 # WebSocket connection manager
 class ConnectionManager:
