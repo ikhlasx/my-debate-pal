@@ -21,7 +21,13 @@ try:
     load_dotenv(env_path)
 except Exception:
     pass  # .env file not required in production
-    
+    pass  # .env file not required in production
+
+import sys
+# Add current directory to sys.path to ensure local imports work
+# regardless of how the script is run (e.g. uvicorn root vs python script)
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
 from auth_deps import get_token_header
 
 from schemas import (
