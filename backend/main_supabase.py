@@ -201,6 +201,8 @@ app.add_middleware(
     allow_origins=[
         # Production Vercel deployment
         "https://my-debate-pal.vercel.app",
+        "https://my-debate-pal.onrender.com",
+        "https://debate-pal-backend.onrender.com", 
         # Local development
         "http://localhost:8080",
         "http://localhost:8081",
@@ -215,6 +217,7 @@ app.add_middleware(
         "https://*.vercel.sh",
         # Custom frontend URL from environment variable
         os.getenv("FRONTEND_URL", ""),
+        "*", # Allow all for debugging in this specific scenario if other settings fail
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
