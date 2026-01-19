@@ -202,8 +202,9 @@ app.add_middleware(
     allow_origins=[
         "https://my-debate-pal.vercel.app",
         "https://my-debate-pal.onrender.com",
+        "https://my-debate-pal-production.up.railway.app",  # Railway deployment
     ],
-    allow_origin_regex="https://.*\.vercel\.app", # Allow all Vercel subdomains
+    allow_origin_regex="https://.*\.(vercel\.app|railway\.app)", # Allow all Vercel and Railway subdomains
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -216,6 +217,15 @@ async def health_check():
         "status": "online",
         "service": "debate-pal-backend", 
         "time": datetime.now().isoformat()
+    }
+
+@app.get("/health")
+async def health():
+    """Dedicated health check for Railway and monitoring"""
+    return {
+        "status": "healthy",
+        "service": "debate-pal-backend",
+        "timestamp": datetime.now().isoformat()
     }
 
 # WebSocket connection manager
