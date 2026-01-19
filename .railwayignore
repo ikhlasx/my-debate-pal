@@ -1,0 +1,55 @@
+# Frontend files - not needed for backend deployment
+node_modules/
+src/
+public/
+*.tsx
+*.ts
+*.jsx
+*.js
+vite.config.ts
+tsconfig*.json
+package.json
+package-lock.json
+bun.lockb
+tailwind.config.ts
+postcss.config.js
+eslint.config.js
+index.html
+components.json
+
+# Development files
+.git/
+.cursor/
+.vscode/
+*.md
+!backend/*.md
+
+# Environment files (use Railway variables instead)
+.env
+backend/.env
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+backend/__pycache__/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Vercel files
+.vercel/
+vercel.json
+.vercelignore
+api/
