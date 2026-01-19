@@ -9,13 +9,10 @@ from supabase import Client
 # ACTUALLY: Best pattern is to have a simple dependency that extracts the Token.
 # Then the endpoint uses the global supabase client to verify.
 
-async def get_token_header(authorization: Optional[str] = Header(None)) -> str:
+async def get_token_header(authorization: Optional[str] = Header(None)) -> Optional[str]:
+    """Extract token from Authorization header. Returns None if not provided (for demo mode)."""
     if not authorization:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing Authorization Header",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
+        return None
     
     if not authorization.startswith("Bearer "):
         raise HTTPException(

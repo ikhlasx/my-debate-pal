@@ -14,7 +14,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Create Supabase client
 // Note: If supabaseUrl is empty, createClient will throw "supabaseUrl is required" error
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Use placeholder values if credentials are missing to prevent crashes
+const safeSupabaseUrl = supabaseUrl || 'https://placeholder.supabase.co';
+const safeSupabaseKey = supabaseAnonKey || 'placeholder-key';
+
+export const supabase = createClient(safeSupabaseUrl, safeSupabaseKey, {
   realtime: {
     params: {
       eventsPerSecond: 10,
@@ -38,7 +42,16 @@ export class SupabaseRealtimeClient {
     }
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.warn('Cannot connect to Supabase Realtime: credentials missing');
+      console.warn(
+        'Cannot connect to Supabase Realtime: credentials missing. ' +
+        'Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your Vercel Environment Variables.'
+      );
+      return;
+    }
+
+    // Validate that credentials are not placeholders
+    if (supabaseUrl.includes('placeholder') || supabaseAnonKey.includes('placeholder')) {
+      console.warn('Cannot connect to Supabase Realtime: using placeholder credentials');
       return;
     }
 

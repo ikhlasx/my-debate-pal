@@ -122,23 +122,48 @@ class ApiClient {
   private baseUrl: string;
 
   constructor(baseUrl: string = API_BASE_URL) {
-    this.baseUrl = baseUrl;
+    // Normalize baseUrl: remove trailing slash, ensure it's a clean URL
+    this.baseUrl = baseUrl.trim().replace(/\/+$/, '');
+  }
+
+  private normalizeUrl(endpoint: string): string {
+    // Remove leading slash from endpoint if present
+    const cleanEndpoint = endpoint.startsWith('/') ? endpoint.slice(1) : endpoint;
+    
+    // If baseUrl is empty or just '/', return the endpoint with leading slash
+    if (!this.baseUrl || this.baseUrl === '/') {
+      return `/${cleanEndpoint}`;
+    }
+    
+    // If baseUrl is relative (starts with /), concatenate properly
+    if (this.baseUrl.startsWith('/')) {
+      return `${this.baseUrl}/${cleanEndpoint}`;
+    }
+    
+    // If baseUrl is absolute, ensure proper concatenation
+    return `${this.baseUrl}/${cleanEndpoint}`;
   }
 
   private async request<T>(
     endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
-    const url = `${this.baseUrl}${endpoint}`;
+    const url = this.normalizeUrl(endpoint);
     const headers: HeadersInit = {
       'Content-Type': 'application/json',
       ...options.headers,
     };
 
     // Add Authorization header if session exists
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) {
-      (headers as any)['Authorization'] = `Bearer ${session.access_token}`;
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.access_token) {
+        (headers as any)['Authorization'] = `Bearer ${session.access_token}`;
+      }
+    } catch (authError) {
+      // If auth check fails, continue without auth token
+      // This allows the request to proceed and the backend will handle auth errors
+      console.warn('Could not get auth session:', authError);
     }
 
     try {
@@ -150,20 +175,43 @@ class ApiClient {
       if (!response.ok) {
         // Try to get error details from response
         let errorMessage = `API error: ${response.status} ${response.statusText}`;
+        let errorDetail = '';
         try {
           const errorData = await response.json();
           if (errorData.detail) {
+            errorDetail = errorData.detail;
             errorMessage += ` - ${errorData.detail}`;
           } else if (errorData.message) {
+            errorDetail = errorData.message;
             errorMessage += ` - ${errorData.message}`;
+          }
+          if (errorData.help) {
+            errorMessage += `\n\nHelp: ${errorData.help}`;
           }
         } catch {
           // If response is not JSON, use status text
         }
 
+        // Add helpful context for common errors
+        if (response.status === 404) {
+          errorMessage += `\n\nTroubleshooting:\n` +
+            `1. Check if the backend is running\n` +
+            `2. Verify API URL: ${this.baseUrl}\n` +
+            `3. For Vercel: Ensure VITE_API_URL is not set (uses /api automatically)\n` +
+            `4. For Railway: Set VITE_API_URL to your Railway URL (e.g., https://your-app.up.railway.app)`;
+        } else if (response.status === 401) {
+          errorMessage += `\n\nNote: Authentication is optional - the app will use demo mode if no token is provided.`;
+        } else if (response.status === 500) {
+          errorMessage += `\n\nBackend error. Check:\n` +
+            `1. Supabase credentials are set in backend environment variables\n` +
+            `2. Database tables exist (run migration SQL in Supabase)\n` +
+            `3. Check backend logs for detailed error information`;
+        }
+
         const error = new Error(errorMessage);
         (error as any).status = response.status;
         (error as any).url = url;
+        (error as any).detail = errorDetail;
         throw error;
       }
 
@@ -171,10 +219,22 @@ class ApiClient {
     } catch (error: any) {
       // Enhance error with more context
       if (error.name === 'TypeError' && error.message.includes('fetch')) {
+        const isRelativeUrl = url.startsWith('/');
+        const helpText = isRelativeUrl
+          ? `Using relative URL (${url}). This works with Vercel serverless functions.\n` +
+            `If you're on Railway, set VITE_API_URL to your Railway URL.`
+          : `Using absolute URL (${url}).\n` +
+            `Current API_BASE_URL: ${this.baseUrl}\n` +
+            `Make sure the backend is running and accessible at this URL.`;
+        
         throw new Error(
-          `Network error: Cannot connect to API at ${url}. ` +
-          `Make sure the backend is running (python main_supabase.py) and ` +
-          `check VITE_API_URL environment variable.`
+          `Network error: Cannot connect to API at ${url}.\n\n` +
+          `Troubleshooting:\n` +
+          `1. Check if the backend is running\n` +
+          `2. Verify network connectivity\n` +
+          `3. Check CORS settings on the backend\n` +
+          `4. ${helpText}\n` +
+          `5. Check browser console for CORS or network errors`
         );
       }
       throw error;
