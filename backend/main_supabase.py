@@ -4,6 +4,7 @@ Uses Supabase as the centralized database with a demo user
 """
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from typing import List, Optional, Dict, Any
 
 from datetime import datetime, date, timedelta
@@ -200,21 +201,42 @@ def get_supabase():
 app = FastAPI(title="Debate Tracker API (Supabase)", version="2.0.0")
 
 # CORS middleware
-# CORS middleware
 # Configure CORS to allow the Vercel frontend and local development
+# IMPORTANT: Railway backend must allow requests from Vercel frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://my-debate-pal.vercel.app",
         "https://my-debate-pal.onrender.com",
         "https://my-debate-pal-production.up.railway.app",  # Railway deployment
+        "http://localhost:5173",  # Vite dev server
+        "http://localhost:8080",  # Alternative dev port
+        "http://localhost:8081",  # Alternative dev port
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:8080",
+        "http://127.0.0.1:8081",
     ],
-    allow_origin_regex="https://.*\.(vercel\.app|railway\.app)", # Allow all Vercel and Railway subdomains
+    allow_origin_regex=r"https://.*\.(vercel\.app|railway\.app|vercel\.sh)",  # Allow all Vercel and Railway subdomains
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
     allow_headers=["*"],
     expose_headers=["*"],
+    max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+# Explicit OPTIONS handler for CORS preflight (backup, middleware should handle this)
+@app.options("/{full_path:path}")
+async def options_handler(full_path: str):
+    """Handle CORS preflight requests - middleware should handle this, but this is a backup"""
+    return Response(
+        status_code=200,
+        headers={
+            "Access-Control-Allow-Origin": "*",  # Will be overridden by middleware for specific origins
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+            "Access-Control-Allow-Headers": "*",
+            "Access-Control-Max-Age": "3600",
+        }
+    )
 
 @app.get("/")
 async def health_check():
