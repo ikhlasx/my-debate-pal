@@ -200,7 +200,7 @@ def get_supabase():
 
 app = FastAPI(title="Debate Tracker API (Supabase)", version="2.0.0")
 
-# CORS middleware
+# CORS middleware - MUST be added before routes
 # Configure CORS to allow the Vercel frontend and local development
 # IMPORTANT: Railway backend must allow requests from Vercel frontend
 app.add_middleware(
@@ -223,6 +223,43 @@ app.add_middleware(
     expose_headers=["*"],
     max_age=3600,  # Cache preflight requests for 1 hour
 )
+
+# Additional middleware to ensure CORS headers are always present (backup)
+@app.middleware("http")
+async def add_cors_header(request, call_next):
+    """Ensure CORS headers are always present"""
+    response = await call_next(request)
+    
+    # Get origin from request
+    origin = request.headers.get("origin")
+    
+    # List of allowed origins
+    allowed_origins = [
+        "https://my-debate-pal.vercel.app",
+        "https://my-debate-pal.onrender.com",
+        "https://my-debate-pal-production.up.railway.app",
+    ]
+    
+    # Check if origin matches regex pattern
+    import re
+    regex_pattern = r"https://.*\.(vercel\.app|railway\.app|vercel\.sh)"
+    is_allowed = origin in allowed_origins or (origin and re.match(regex_pattern, origin))
+    
+    if origin and is_allowed:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    elif origin:
+        # For development, allow localhost
+        if origin.startswith("http://localhost") or origin.startswith("http://127.0.0.1"):
+            response.headers["Access-Control-Allow-Origin"] = origin
+            response.headers["Access-Control-Allow-Credentials"] = "true"
+    
+    # Always add these headers
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Expose-Headers"] = "*"
+    
+    return response
 
 # Explicit OPTIONS handler for CORS preflight (backup, middleware should handle this)
 @app.options("/{full_path:path}")
@@ -252,6 +289,20 @@ async def health():
     return {
         "status": "healthy",
         "service": "debate-pal-backend",
+        "timestamp": datetime.now().isoformat()
+    }
+
+@app.get("/cors-test")
+async def cors_test():
+    """Test endpoint to verify CORS headers are being sent"""
+    return {
+        "message": "CORS test endpoint",
+        "cors_enabled": True,
+        "allowed_origins": [
+            "https://my-debate-pal.vercel.app",
+            "https://*.vercel.app",
+            "https://*.railway.app"
+        ],
         "timestamp": datetime.now().isoformat()
     }
 
