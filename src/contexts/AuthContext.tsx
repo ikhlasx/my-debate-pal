@@ -1,52 +1,18 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import { useUser, useClerk } from "@clerk/clerk-react";
 
-// Simplified User interface
-export interface User {
-    id: string;
-    email?: string;
-}
+// Adapter to match the previous AuthContext interface
+export const useAuth = () => {
+    const { user, isLoaded } = useUser();
+    const { signOut } = useClerk();
 
-interface AuthContextType {
-    user: User | null;
-    loading: boolean;
-    signOut: () => Promise<void>;
-}
-
-const AuthContext = createContext<AuthContextType>({
-    user: null,
-    loading: true,
-    signOut: async () => { },
-});
-
-export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
-    const [user, setUser] = useState<User | null>(null);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        // Simple anonymous auth: generate a random ID if not exists
-        let userId = localStorage.getItem('debate_partner_id');
-        if (!userId) {
-            userId = 'user_' + Math.random().toString(36).substring(2, 15);
-            localStorage.setItem('debate_partner_id', userId);
-        }
-
-        setUser({ id: userId });
-        setLoading(false);
-    }, []);
-
-    const signOut = async () => {
-        // For anonymous auth, maybe just clear the ID? 
-        // Or do nothing as there is no real "sign out".
-        // Let's clear to simulate reset.
-        localStorage.removeItem('debate_partner_id');
-        window.location.reload();
+    return {
+        user: user ? { id: user.id, email: user.primaryEmailAddress?.emailAddress } : null,
+        loading: !isLoaded,
+        signOut
     };
-
-    return (
-        <AuthContext.Provider value={{ user, loading, signOut }}>
-            {children}
-        </AuthContext.Provider>
-    );
 };
 
-export const useAuth = () => useContext(AuthContext);
+// No-op provider as ClerkProvider handles state now
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+    return <>{children}</>;
+};
