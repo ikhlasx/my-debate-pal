@@ -2,8 +2,11 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import { Toast, ToastType, Partner, NotificationSettings } from '@/types/debate';
 import { NotificationManager } from '@/lib/NotificationManager';
 import { registerServiceWorker } from '@/lib/serviceWorkerRegistration';
-import { apiClient } from '@/lib/api';
 import { getPartnerName } from '@/lib/partnerSettings';
+import { useMutation } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { useDemoMode } from './useDemoMode';
 
 const USE_BACKEND = import.meta.env.VITE_USE_BACKEND !== 'false';
 
@@ -154,6 +157,11 @@ export const useEnhancedNotifications = () => {
     setSettings(prev => ({ ...prev, ...newSettings }));
   }, []);
 
+  // Convex Mutations
+  const createNotification = useMutation(api.notifications.create);
+  const { user } = useAuth();
+  const { isDemoMode } = useDemoMode();
+
   const notifyDebateStart = useCallback(async (partner: Partner) => {
     if (!notificationManagerRef.current) return;
 
@@ -164,10 +172,11 @@ export const useEnhancedNotifications = () => {
     notifiedMilestonesRef.current.delete(`${partner}-15`);
     notifiedMilestonesRef.current.delete(`${partner}-30`);
 
-    // Send to backend if enabled
-    if (USE_BACKEND) {
+    // Send to backend if enabled and user exists
+    if (!isDemoMode && user?.id) {
       try {
-        await apiClient.createNotification({
+        await createNotification({
+          partnerId: user.id,
           type: 'debate_start',
           title: `${getPartnerName(partner)} Started a Debate`,
           message: 'Timer is now running...',
@@ -177,7 +186,7 @@ export const useEnhancedNotifications = () => {
         console.error('Failed to send notification to backend:', error);
       }
     }
-  }, []);
+  }, [user, isDemoMode, createNotification]);
 
   const notifyDebateEnd = useCallback(async (partner: Partner, duration: number) => {
     if (!notificationManagerRef.current) return;
@@ -185,13 +194,14 @@ export const useEnhancedNotifications = () => {
     notificationManagerRef.current.onToggleOff(partner, duration);
 
     // Send to backend if enabled
-    if (USE_BACKEND) {
+    if (!isDemoMode && user?.id) {
       try {
         const minutes = Math.floor(duration / 60);
         const seconds = duration % 60;
         const formattedDuration = `${minutes}:${String(seconds).padStart(2, '0')}`;
-        
-        await apiClient.createNotification({
+
+        await createNotification({
+          partnerId: user.id,
           type: 'debate_end',
           title: `${getPartnerName(partner)} Ended Debate`,
           message: `Duration: ${formattedDuration}`,
@@ -202,7 +212,7 @@ export const useEnhancedNotifications = () => {
         console.error('Failed to send notification to backend:', error);
       }
     }
-  }, []);
+  }, [user, isDemoMode, createNotification]);
 
   const notifyBothActive = useCallback(async () => {
     if (!notificationManagerRef.current) return;
@@ -210,19 +220,20 @@ export const useEnhancedNotifications = () => {
     notificationManagerRef.current.onBothActive();
 
     // Send to backend if enabled
-    if (USE_BACKEND) {
+    if (!isDemoMode && user?.id) {
       try {
-        await apiClient.createNotification({
+        await createNotification({
+          partnerId: user.id,
           type: 'both_active',
           title: 'Both Partners Active',
           message: `${getPartnerName('husband')} and ${getPartnerName('wife')} are both debating simultaneously!`,
-          partner: undefined, // Both partners
+          partner: undefined,
         });
       } catch (error) {
         console.error('Failed to send notification to backend:', error);
       }
     }
-  }, []);
+  }, [user, isDemoMode, createNotification]);
 
   const checkMilestones = useCallback((partner: Partner, seconds: number) => {
     if (!notificationManagerRef.current) return;

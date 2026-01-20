@@ -7,15 +7,15 @@ import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import { Crown, Trophy, TrendingUp, TrendingDown, Clock, Calendar as CalendarIcon, Activity, Flame, Heart, Zap, ArrowUpRight, ArrowDownRight, Minus, Sparkles, Target, Award } from 'lucide-react';
 import { BackButton } from '@/components/BackButton';
-import { apiClient, WeeklyStats, MonthlyStats, AnalyticsStats, DailyBreakdown, CalendarHeatmapData } from '@/lib/api';
+import { WeeklyStats, MonthlyStats, AnalyticsStats, DailyBreakdown, CalendarHeatmapData } from '@/types/analytics';
 import { format, startOfWeek, endOfWeek, startOfMonth, endOfMonth, parseISO, eachDayOfInterval, subMonths } from 'date-fns';
-import { 
-  loadSessionsFromStorage, 
-  calculateWeeklyStatsFromSessions, 
-  calculateMonthlyStatsFromSessions,
-  calculateGeneralStatsFromSessions,
+import {
+  loadSessionsFromStorage,
   calculateDailyBreakdownFromSessions
 } from '@/lib/analyticsUtils';
+import { useQuery } from 'convex/react';
+import { api } from '../../convex/_generated/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { getPartnerName } from '@/lib/partnerSettings';
 import { generateFakeLastMonthStats, generateFakeMonthlyStats, generateFakeLastWeekStats, generateFakeGeneralStats, generateFakeLastMonthSessions, calculateMonthComparison, MonthComparison } from '@/lib/fakeDataGenerator';
 import { useDemoMode } from '@/hooks/useDemoMode';
@@ -32,112 +32,100 @@ const COLORS = {
 
 const Analytics = () => {
   const { isDemoMode } = useDemoMode();
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyStats | null>(null);
-  const [monthlyStats, setMonthlyStats] = useState<MonthlyStats | null>(null);
-  const [lastMonthStats, setLastMonthStats] = useState<MonthlyStats | null>(null);
-  const [generalStats, setGeneralStats] = useState<AnalyticsStats | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
-  const [dailyBreakdown, setDailyBreakdown] = useState<DailyBreakdown | null>(null);
+  const { user } = useAuth();
+
   const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
+
+  // Computed parameters for queries
+  const weekStart = useMemo(() => startOfWeek(new Date(), { weekStartsOn: 1 }).toISOString(), []);
+  const currentYear = currentMonth.getFullYear();
+  const currentMonthNum = currentMonth.getMonth() + 1;
+  const lastMonthDate = useMemo(() => subMonths(currentMonth, 1), [currentMonth]);
+  const lastMonthYear = lastMonthDate.getFullYear();
+  const lastMonthNum = lastMonthDate.getMonth() + 1;
+  const selectedDateStr = selectedDate ? format(selectedDate, 'yyyy-MM-dd') : null;
+
+  // CONVEX QUERIES
+  // Only run if not in demo mode and user exists
+  const shouldFetch = !isDemoMode && !!user?.id;
+  const partnerId = user?.id || ""; // Safe fallback although shouldFetch protects it
+
+  const convexWeeklyStats = useQuery(api.analytics.getWeeklyStats,
+    shouldFetch ? { partnerId, weekStart } : "skip"
+  );
+
+  const convexMonthlyStats = useQuery(api.analytics.getMonthlyStats,
+    shouldFetch ? { partnerId, year: currentYear, month: currentMonthNum } : "skip"
+  );
+
+  const convexLastMonthStats = useQuery(api.analytics.getMonthlyStats,
+    shouldFetch ? { partnerId, year: lastMonthYear, month: lastMonthNum } : "skip"
+  );
+
+  const convexGeneralStats = useQuery(api.analytics.getGeneralStats,
+    shouldFetch ? { partnerId } : "skip"
+  );
+
+  const convexDailyStats = useQuery(api.analytics.getDailyStats,
+    shouldFetch && selectedDateStr ? { partnerId, date: selectedDateStr } : "skip"
+  );
+
+  // LOCAL STATE (for Demo Mode or fallback)
+  const [stats, setStats] = useState<{
+    weekly: WeeklyStats | null;
+    monthly: MonthlyStats | null;
+    lastMonth: MonthlyStats | null;
+    general: AnalyticsStats | null;
+    daily: DailyBreakdown | null;
+  }>({
+    weekly: null,
+    monthly: null,
+    lastMonth: null,
+    general: null,
+    daily: null
+  });
+
   const [loading, setLoading] = useState(true);
+
+  // Effect to switch between Convex data and Demo data
+  useEffect(() => {
+    if (isDemoMode) {
+      // Demo Mode: Generate fake data
+      const fakeLastMonth = generateFakeLastMonthStats();
+      setStats({
+        weekly: generateFakeLastWeekStats(),
+        monthly: generateFakeMonthlyStats(currentMonth),
+        lastMonth: fakeLastMonth,
+        general: generateFakeGeneralStats(),
+        daily: selectedDate ? calculateDailyBreakdownFromSessions(generateFakeLastMonthSessions().map(s => ({ ...s, start_time: s.startTime.toISOString(), end_time: s.endTime?.toISOString() }) as any), selectedDate) : null
+      });
+      setLoading(false);
+    } else {
+      // Real Mode: Use Convex data
+      // We set loading to false once we have at least some data or if we are skipping
+      if (convexWeeklyStats !== undefined || convexMonthlyStats !== undefined) {
+        setLoading(false);
+      }
+    }
+  }, [isDemoMode, currentMonth, selectedDate, convexWeeklyStats, convexMonthlyStats]);
+
+  // Derived state to use in render
+  const weeklyStats = isDemoMode ? stats.weekly : (convexWeeklyStats as any as WeeklyStats | null);
+  const monthlyStats = isDemoMode ? stats.monthly : (convexMonthlyStats as any as MonthlyStats | null);
+  const lastMonthStats = isDemoMode ? stats.lastMonth : (convexLastMonthStats as any as MonthlyStats | null);
+  const generalStats = isDemoMode ? stats.general : (convexGeneralStats as any as AnalyticsStats | null);
+  const dailyBreakdown = isDemoMode ? stats.daily : (convexDailyStats as any as DailyBreakdown | null);
+
   const [monthComparison, setMonthComparison] = useState<MonthComparison | null>(null);
 
-  // Load fake data for last month on mount (for comparison)
-  useEffect(() => {
-    const fakeLastMonth = generateFakeLastMonthStats();
-    setLastMonthStats(fakeLastMonth);
-  }, []);
-
-  // Load weekly stats
-  useEffect(() => {
-    const loadWeeklyStats = async () => {
-      try {
-        if (isDemoMode) {
-          // Use fake data for demo mode
-          const fakeStats = generateFakeLastWeekStats();
-          setWeeklyStats(fakeStats);
-          return;
-        }
-
-        const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-        const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
-        
-        // REAL USER MODE: Always use Supabase backend
-        try {
-          const stats = await apiClient.getWeeklyStats(weekStart.toISOString());
-          setWeeklyStats(stats);
-          return;
-        } catch (error) {
-          console.error('Failed to load weekly stats from Supabase API:', error);
-          console.error('Make sure the backend is running with main_supabase.py');
-          // Fallback to localStorage as last resort
-          const sessions = loadSessionsFromStorage();
-          const stats = calculateWeeklyStatsFromSessions(sessions, weekStart, weekEnd);
-          setWeeklyStats(stats);
-        }
-      } catch (error) {
-        console.error('Failed to load weekly stats:', error);
-      }
-    };
-    loadWeeklyStats();
-  }, [isDemoMode]);
-
-  // Load monthly stats
-  useEffect(() => {
-    const loadMonthlyStats = async () => {
-      try {
-        const year = currentMonth.getFullYear();
-        const month = currentMonth.getMonth() + 1;
-        
-        // Check if viewing last month - use fake data for comparison
-        const lastMonth = subMonths(new Date(), 1);
-        const isLastMonth = year === lastMonth.getFullYear() && month === lastMonth.getMonth() + 1;
-        
-        if (isDemoMode) {
-          // Use fake data for demo mode
-          if (isLastMonth && lastMonthStats) {
-            setMonthlyStats(lastMonthStats);
-          } else {
-            // Generate fake data for current month or other months
-            const targetDate = new Date(year, month - 1, 1);
-            const fakeStats = generateFakeMonthlyStats(targetDate);
-            setMonthlyStats(fakeStats);
-          }
-          return;
-        }
-        
-        if (isLastMonth && lastMonthStats) {
-          setMonthlyStats(lastMonthStats);
-          return;
-        }
-        
-        // REAL USER MODE: Always use Supabase backend
-        try {
-          const stats = await apiClient.getMonthlyStats(year, month);
-          setMonthlyStats(stats);
-          return;
-        } catch (error) {
-          console.error('Failed to load monthly stats from Supabase API:', error);
-          console.error('Make sure the backend is running with main_supabase.py');
-          // Fallback to localStorage as last resort
-          const sessions = loadSessionsFromStorage();
-          const stats = calculateMonthlyStatsFromSessions(sessions, year, month);
-          setMonthlyStats(stats);
-        }
-      } catch (error) {
-        console.error('Failed to load monthly stats:', error);
-      }
-    };
-    loadMonthlyStats();
-  }, [currentMonth, lastMonthStats, isDemoMode]);
-
-  // Calculate month comparison when both months are loaded
+  // Month comparison logic
   useEffect(() => {
     if (monthlyStats && lastMonthStats) {
       const thisMonth = new Date();
-      const isCurrentMonth = currentMonth.getFullYear() === thisMonth.getFullYear() && 
-                            currentMonth.getMonth() === thisMonth.getMonth();
-      
+      const isCurrentMonth = currentMonth.getFullYear() === thisMonth.getFullYear() &&
+        currentMonth.getMonth() === thisMonth.getMonth();
+
       if (isCurrentMonth) {
         const comparison = calculateMonthComparison(monthlyStats, lastMonthStats);
         setMonthComparison(comparison);
@@ -146,92 +134,6 @@ const Analytics = () => {
       }
     }
   }, [monthlyStats, lastMonthStats, currentMonth]);
-
-  // Load general stats
-  useEffect(() => {
-    const loadGeneralStats = async () => {
-      try {
-        if (isDemoMode) {
-          // Use fake data for demo mode
-          const fakeStats = generateFakeGeneralStats();
-          setGeneralStats(fakeStats);
-          setLoading(false);
-          return;
-        }
-
-        // REAL USER MODE: Always use Supabase backend
-        try {
-          const stats = await apiClient.getAnalyticsStats();
-          setGeneralStats(stats);
-          setLoading(false);
-          return;
-        } catch (error) {
-          console.error('Failed to load general stats from Supabase API:', error);
-          console.error('Make sure the backend is running with main_supabase.py');
-          // Fallback to localStorage as last resort
-          const sessions = loadSessionsFromStorage();
-          const stats = calculateGeneralStatsFromSessions(sessions);
-          setGeneralStats(stats);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error('Failed to load general stats:', error);
-        setLoading(false);
-      }
-    };
-    loadGeneralStats();
-  }, [isDemoMode]);
-
-  // Load daily breakdown when date is selected
-  useEffect(() => {
-    if (selectedDate) {
-      const loadDailyBreakdown = async () => {
-        try {
-          if (isDemoMode) {
-            // Generate fake daily breakdown for demo mode
-            const dateStr = format(selectedDate, 'yyyy-MM-dd');
-            const fakeSessions = generateFakeLastMonthSessions();
-            const daySessions = fakeSessions.filter(
-              s => format(new Date(s.startTime), 'yyyy-MM-dd') === dateStr
-            );
-            const breakdown = calculateDailyBreakdownFromSessions(
-              daySessions.map(s => ({
-                id: parseInt(s.id) || 0,
-                partner: s.partner,
-                start_time: s.startTime.toISOString(),
-                end_time: s.endTime?.toISOString(),
-                duration: s.duration,
-                created_at: s.startTime.toISOString(),
-                updated_at: s.endTime?.toISOString() || s.startTime.toISOString(),
-              })),
-              selectedDate
-            );
-            setDailyBreakdown(breakdown);
-            return;
-          }
-
-          const dateStr = format(selectedDate, 'yyyy-MM-dd');
-          
-          // REAL USER MODE: Always use Supabase backend
-          try {
-            const breakdown = await apiClient.getDailyStats(dateStr);
-            setDailyBreakdown(breakdown);
-            return;
-          } catch (error) {
-            console.error('Failed to load daily breakdown from Supabase API:', error);
-            console.error('Make sure the backend is running with main_supabase.py');
-            // Fallback to localStorage as last resort
-            const sessions = loadSessionsFromStorage();
-            const breakdown = calculateDailyBreakdownFromSessions(sessions, selectedDate);
-            setDailyBreakdown(breakdown);
-          }
-        } catch (error) {
-          console.error('Failed to load daily breakdown:', error);
-        }
-      };
-      loadDailyBreakdown();
-    }
-  }, [selectedDate, isDemoMode]);
 
   const formatDuration = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -310,11 +212,11 @@ const Analytics = () => {
   // Calendar heatmap data
   const getCalendarHeatmap = () => {
     if (!monthlyStats) return [];
-    
+
     const start = startOfMonth(currentMonth);
     const end = endOfMonth(currentMonth);
     const days = eachDayOfInterval({ start, end });
-    
+
     return days.map(day => {
       const dayData = monthlyStats.calendar_heatmap.find(
         d => parseISO(d.date).getDate() === day.getDate()
@@ -334,38 +236,38 @@ const Analytics = () => {
   const getDayColor = (dayData: { intensity: number; husbandSessions: number; wifeSessions: number; date: Date }): string => {
     const totalSessions = dayData.husbandSessions + dayData.wifeSessions;
     const totalTime = dayData.intensity * 3600;
-    
+
     const dayKey = format(dayData.date, 'yyyy-MM-dd');
     const dayStats = monthlyStats?.trend_data.find(d => d.date === dayKey);
     const hasOverlap = (dayStats?.overlap_time || 0) > 0;
-    
+
     if (hasOverlap) {
       return 'bg-purple-500';
     }
-    
+
     if (totalSessions === 0) {
       return 'bg-emerald-200';
     }
-    
+
     if (totalSessions >= 6 || totalTime > 3600) {
       return 'bg-red-500';
     }
-    
+
     if (totalSessions >= 3 && totalSessions <= 5) {
       return 'bg-orange-400';
     }
-    
+
     if (totalSessions >= 1 && totalSessions <= 2) {
       return 'bg-yellow-300';
     }
-    
+
     return 'bg-gray-200';
   };
 
   const ChangeIndicator = ({ value, inverse = false }: { value: number; inverse?: boolean }) => {
     const isPositive = inverse ? value < 0 : value > 0;
     const isNegative = inverse ? value > 0 : value < 0;
-    
+
     return (
       <div className={cn(
         "flex items-center gap-1 text-sm font-medium",
@@ -373,9 +275,9 @@ const Analytics = () => {
         isNegative && "text-red-600",
         !isPositive && !isNegative && "text-gray-500"
       )}>
-        {isPositive ? <ArrowDownRight className="w-4 h-4" /> : 
-         isNegative ? <ArrowUpRight className="w-4 h-4" /> : 
-         <Minus className="w-4 h-4" />}
+        {isPositive ? <ArrowDownRight className="w-4 h-4" /> :
+          isNegative ? <ArrowUpRight className="w-4 h-4" /> :
+            <Minus className="w-4 h-4" />}
         <span>{Math.abs(value).toFixed(1)}%</span>
       </div>
     );
@@ -438,11 +340,11 @@ const Analytics = () => {
                   <div>
                     <CardTitle className="text-gray-900 text-xl">Month-over-Month Comparison</CardTitle>
                     <CardDescription className="text-gray-600">
-                      {monthComparison.trend === 'improving' 
-                        ? "Great progress! Fewer debates this month 🎉" 
+                      {monthComparison.trend === 'improving'
+                        ? "Great progress! Fewer debates this month 🎉"
                         : monthComparison.trend === 'worsening'
-                        ? "More debates this month - time to talk! 💬"
-                        : "Holding steady compared to last month"}
+                          ? "More debates this month - time to talk! 💬"
+                          : "Holding steady compared to last month"}
                     </CardDescription>
                   </div>
                 </div>
@@ -452,8 +354,8 @@ const Analytics = () => {
                   monthComparison.trend === 'worsening' && "bg-red-100 text-red-700 border-red-300",
                   monthComparison.trend === 'stable' && "bg-indigo-100 text-indigo-700 border-indigo-300"
                 )}>
-                  {monthComparison.trend === 'improving' ? 'Improving' : 
-                   monthComparison.trend === 'worsening' ? 'Needs Attention' : 'Stable'}
+                  {monthComparison.trend === 'improving' ? 'Improving' :
+                    monthComparison.trend === 'worsening' ? 'Needs Attention' : 'Stable'}
                 </Badge>
               </div>
             </CardHeader>
@@ -603,9 +505,9 @@ const Analytics = () => {
                       <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                       <XAxis dataKey="category" stroke="#6b7280" fontSize={12} />
                       <YAxis stroke="#6b7280" fontSize={12} />
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#fff', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#fff',
                           border: '1px solid #e5e7eb',
                           borderRadius: '8px',
                           color: '#111827',
@@ -649,9 +551,9 @@ const Analytics = () => {
                           <Cell key={`cell-${index}`} fill={entry.color} />
                         ))}
                       </Pie>
-                      <Tooltip 
-                        contentStyle={{ 
-                          backgroundColor: '#fff', 
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: '#fff',
                           border: '1px solid #e5e7eb',
                           borderRadius: '8px',
                           color: '#111827',
@@ -680,20 +582,20 @@ const Analytics = () => {
                   <AreaChart data={monthlyTrendData}>
                     <defs>
                       <linearGradient id="colorHusband" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={COLORS.husband} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={COLORS.husband} stopOpacity={0}/>
+                        <stop offset="5%" stopColor={COLORS.husband} stopOpacity={0.3} />
+                        <stop offset="95%" stopColor={COLORS.husband} stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="colorWife" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor={COLORS.wife} stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor={COLORS.wife} stopOpacity={0}/>
+                        <stop offset="5%" stopColor={COLORS.wife} stopOpacity={0.3} />
+                        <stop offset="95%" stopColor={COLORS.wife} stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                     <XAxis dataKey="date" stroke="#6b7280" fontSize={11} />
                     <YAxis stroke="#6b7280" fontSize={12} />
-                    <Tooltip 
-                      contentStyle={{ 
-                        backgroundColor: '#fff', 
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#fff',
                         border: '1px solid #e5e7eb',
                         borderRadius: '8px',
                         color: '#111827',
@@ -701,19 +603,19 @@ const Analytics = () => {
                       }}
                     />
                     <Legend />
-                    <Area 
-                      type="monotone" 
-                      dataKey={getPartnerName('husband')} 
-                      stroke={COLORS.husband} 
-                      fillOpacity={1} 
-                      fill="url(#colorHusband)" 
+                    <Area
+                      type="monotone"
+                      dataKey={getPartnerName('husband')}
+                      stroke={COLORS.husband}
+                      fillOpacity={1}
+                      fill="url(#colorHusband)"
                     />
-                    <Area 
-                      type="monotone" 
-                      dataKey={getPartnerName('wife')} 
-                      stroke={COLORS.wife} 
-                      fillOpacity={1} 
-                      fill="url(#colorWife)" 
+                    <Area
+                      type="monotone"
+                      dataKey={getPartnerName('wife')}
+                      stroke={COLORS.wife}
+                      fillOpacity={1}
+                      fill="url(#colorWife)"
                     />
                   </AreaChart>
                 </ResponsiveContainer>
@@ -741,8 +643,8 @@ const Analytics = () => {
                     </CardHeader>
                     <CardContent>
                       <p className="text-gray-700 text-sm">
-                        {monthlyStats.winner_reason === 'least_total_time' 
-                          ? 'Least total debate time' 
+                        {monthlyStats.winner_reason === 'least_total_time'
+                          ? 'Least total debate time'
                           : 'Fewest sessions started'}
                       </p>
                     </CardContent>
@@ -834,9 +736,9 @@ const Analytics = () => {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="name" stroke="#6b7280" />
                         <YAxis stroke="#6b7280" />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#fff', 
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#fff',
                             border: '1px solid #e5e7eb',
                             borderRadius: '8px',
                             color: '#111827',
@@ -862,7 +764,7 @@ const Analytics = () => {
                         const totalSessions = Math.round((day.husband_time + day.wife_time) / 300);
                         const totalTime = day.intensity * 3600;
                         const hasOverlap = day.overlap_time > 0;
-                        
+
                         let color = 'bg-gray-200';
                         let textColor = 'text-gray-700';
                         if (hasOverlap) {
@@ -881,7 +783,7 @@ const Analytics = () => {
                           color = 'bg-yellow-300';
                           textColor = 'text-yellow-900';
                         }
-                        
+
                         return (
                           <div key={index} className="text-center">
                             <div className={`${color} rounded-xl p-4 mb-2 transition-transform hover:scale-105`}>
@@ -896,7 +798,7 @@ const Analytics = () => {
                         );
                       })}
                     </div>
-                    
+
                     {/* Legend */}
                     <div className="flex flex-wrap gap-4 mt-6 justify-center">
                       <div className="flex items-center gap-2">
@@ -1059,9 +961,9 @@ const Analytics = () => {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="date" stroke="#6b7280" fontSize={11} />
                         <YAxis stroke="#6b7280" />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#fff', 
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#fff',
                             border: '1px solid #e5e7eb',
                             borderRadius: '8px',
                             color: '#111827',
@@ -1178,11 +1080,11 @@ const Analytics = () => {
                                 className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
                               >
                                 <div className="flex items-center gap-3">
-                                  <Badge 
+                                  <Badge
                                     className={cn(
                                       "text-white",
-                                      session.partner === 'husband' 
-                                        ? 'bg-indigo-600' 
+                                      session.partner === 'husband'
+                                        ? 'bg-indigo-600'
                                         : 'bg-pink-600'
                                     )}
                                   >
@@ -1353,9 +1255,9 @@ const Analytics = () => {
                         <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                         <XAxis dataKey="day" stroke="#6b7280" />
                         <YAxis stroke="#6b7280" />
-                        <Tooltip 
-                          contentStyle={{ 
-                            backgroundColor: '#fff', 
+                        <Tooltip
+                          contentStyle={{
+                            backgroundColor: '#fff',
                             border: '1px solid #e5e7eb',
                             borderRadius: '8px',
                             color: '#111827',
@@ -1364,9 +1266,9 @@ const Analytics = () => {
                         />
                         <Bar dataKey="count" fill="#6366f1" radius={[4, 4, 0, 0]}>
                           {Object.entries(generalStats.debate_frequency_pattern).map((_, index) => (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={index === 5 || index === 6 ? '#ec4899' : '#6366f1'} 
+                            <Cell
+                              key={`cell-${index}`}
+                              fill={index === 5 || index === 6 ? '#ec4899' : '#6366f1'}
                             />
                           ))}
                         </Bar>

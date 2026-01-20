@@ -1,62 +1,49 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { createClient, User, Session } from '@supabase/supabase-js';
 
-// Initialize Supabase Client
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-// We need these env vars
-if (!supabaseUrl || !supabaseKey) {
-    console.error("Missing Supabase Env Vars");
+// Simplified User interface
+export interface User {
+    id: string;
+    email?: string;
 }
-
-export const supabase = createClient(supabaseUrl || '', supabaseKey || '');
 
 interface AuthContextType {
     user: User | null;
-    session: Session | null;
     loading: boolean;
     signOut: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
     user: null,
-    session: null,
     loading: true,
     signOut: async () => { },
 });
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const [user, setUser] = useState<User | null>(null);
-    const [session, setSession] = useState<Session | null>(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Check active session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            setLoading(false);
-        });
+        // Simple anonymous auth: generate a random ID if not exists
+        let userId = localStorage.getItem('debate_partner_id');
+        if (!userId) {
+            userId = 'user_' + Math.random().toString(36).substring(2, 15);
+            localStorage.setItem('debate_partner_id', userId);
+        }
 
-        // Listen for changes
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-            setUser(session?.user ?? null);
-            setLoading(false);
-        });
-
-        return () => subscription.unsubscribe();
+        setUser({ id: userId });
+        setLoading(false);
     }, []);
 
     const signOut = async () => {
-        await supabase.auth.signOut();
+        // For anonymous auth, maybe just clear the ID? 
+        // Or do nothing as there is no real "sign out".
+        // Let's clear to simulate reset.
+        localStorage.removeItem('debate_partner_id');
+        window.location.reload();
     };
 
     return (
-        <AuthContext.Provider value={{ user, session, loading, signOut }}>
+        <AuthContext.Provider value={{ user, loading, signOut }}>
             {children}
         </AuthContext.Provider>
     );
